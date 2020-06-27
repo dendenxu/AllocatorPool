@@ -35,10 +35,11 @@ PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_b
 
 void *PoolMemory::get()
 {
-    if (m_pmemory == nullptr) {  // This should not happen
-        std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
-        return nullptr;
-    }
+    // if (m_pmemory == nullptr) {  // This should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return nullptr;
+    // }
+
     if (m_phead != nullptr) {
         m_free_num_blocks--;  // decrement the number of free blocks
 
@@ -54,11 +55,11 @@ void *PoolMemory::get()
 
 void PoolMemory::free(void *pblock)
 {
-    if (pblock == nullptr) {
-        // do nothing if we're freeing a nullptr
-        // although this situation is declared undefined in C++ Standard
-        return;
-    }
+    // if (pblock == nullptr) {
+    //     // do nothing if we're freeing a nullptr
+    //     // although this situation is declared undefined in C++ Standard
+    //     return;
+    // }
 
     if (m_pmemory == nullptr) {  // this should not happen
         std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;

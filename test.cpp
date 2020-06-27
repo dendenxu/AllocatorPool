@@ -78,4 +78,6 @@ int main()
             }
         }
     }
+
+    std::cout << "Test is completed, bye." << std::endl;
 }
