@@ -47,6 +47,7 @@ class ByteMemory
 {
    public:
     ByteMemory(const std::size_t size) : m_total_size(size), m_index(0) { m_pmemory = new std::byte[size]; }
+    ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size) {}
 
     ByteMemory(const ByteMemory &alloc) = delete;           // delete copy constructor
     ByteMemory &operator=(const ByteMemory &rhs) = delete;  // delete copy-assignment operator
