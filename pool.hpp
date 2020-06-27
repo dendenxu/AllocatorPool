@@ -32,6 +32,9 @@ class PoolMemory
     void free(void *pblock);
 
    private:
+    /** Current size of a memory pool variable should be 48 bytes
+     *  considering 8 byte for one pointer and size_t on my machine
+     */
     std::byte *m_pmemory;            // pointer to the first address of the pool, used to relase all the memory
     void **m_phead;                  // pointer to pointer, used to point to the head of the free list
     std::size_t m_pool_sz_bytes;     //the size in bytes of the pool
