@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 namespace mem
 {
 // ! This class can only be used when sizeof(uintptr_t) <= sizeof(T)
@@ -8,13 +9,19 @@ class PoolMemory
 {
    public:
     PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
+    PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
 
     PoolMemory(const PoolMemory &alloc) = delete;           // delete copy constructor
     PoolMemory &operator=(const PoolMemory &rhs) = delete;  // delete copy-assignment operator
     PoolMemory(PoolMemory &&alloc) = delete;                // delete move constructor
     PoolMemory &operator=(PoolMemory &&rhs) = delete;       // delete move-assignment operator
 
-    ~PoolMemory() { delete[] m_pmemory; }  // delete the pre-allocated memory pool chunk
+    ~PoolMemory()
+    {
+        if (m_is_manual) {
+            delete[] m_pmemory;
+        }
+    }  // delete the pre-allocated memory pool chunk
 
     std::size_t block_size() { return m_block_sz_bytes; }                  // return block size in byte
     std::size_t pool_size() { return m_pool_sz_bytes; }                    // return memory pool size in byte
@@ -32,6 +39,8 @@ class PoolMemory
     void free(void *pblock);
 
    private:
+    void init_memory();  // this function will fill the memory with pointers to the next trunk for initialization
+
     /** Current size of a memory pool variable should be 48 bytes
      *  considering 8 byte for one pointer and size_t on my machine
      */
@@ -41,20 +50,30 @@ class PoolMemory
     std::size_t m_block_sz_bytes;    // size in bytes of each block
     std::size_t m_free_num_blocks;   // number of blocks
     std::size_t m_total_num_blocks;  // total number of blocks
+    bool m_is_manual;                // whether the m_pmemory is manually allocated by us
 };
 
 class ByteMemory
 {
    public:
-    ByteMemory(const std::size_t size) : m_total_size(size), m_index(0) { m_pmemory = new std::byte[size]; }
-    ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size) {}
+    ByteMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true)
+    {
+        m_pmemory = new std::byte[size];
+        m_is_manual = true;
+    }
+    ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
 
     ByteMemory(const ByteMemory &alloc) = delete;           // delete copy constructor
     ByteMemory &operator=(const ByteMemory &rhs) = delete;  // delete copy-assignment operator
     ByteMemory(ByteMemory &&alloc) = delete;                // delete move constructor
     ByteMemory &operator=(ByteMemory &&rhs) = delete;       // delete move-assignment operator
 
-    ~ByteMemory() { delete[] m_pmemory; }  // delete the pre-allocated byte chunk chunk
+    ~ByteMemory()
+    {
+        if (m_is_manual) {
+            delete[] m_pmemory;
+        }
+    }  // delete the pre-allocated byte chunk chunk
 
     std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
     std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
@@ -77,12 +96,15 @@ class ByteMemory
     }
 
     // make sure the pblock is one of the pointers that you get from this byte chunk
-    void free(std::size_t size)
+    void free(void *pblock, std::size_t size)
     {
-        if (m_index < size) {  // this should never happen
+        if (m_index < size) {  // this should not happen if you're calling it right
             std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
         } else {
             m_index -= size;
+            if (m_index + m_pmemory != pblock) {  // this should not happen if you're calling it right
+                std::cerr << "[ERROR] You can only give back what you've taken away, and in the right order" << std::endl;
+            }
         }
     }
 
@@ -90,6 +112,7 @@ class ByteMemory
     std::byte *m_pmemory;      // pointer to the byte array
     std::size_t m_index;       // current index of the byte array
     std::size_t m_total_size;  // total number of blocks
+    bool m_is_manual;          // whether the m_pmemory is manually allocated by us
 };
 
 }  // namespace mem

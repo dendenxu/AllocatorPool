@@ -5,12 +5,28 @@ PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_b
     : m_pool_sz_bytes(num_blocks * block_sz_bytes),
       m_block_sz_bytes(block_sz_bytes),
       m_free_num_blocks(num_blocks),
-      m_total_num_blocks(num_blocks)
+      m_total_num_blocks(num_blocks),
+      m_is_manual(true)
+{
+    m_pmemory = new std::byte[m_pool_sz_bytes];  // using byte as memory pool base type
+    init_memory();
+}
 
+PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory)
+    : m_pool_sz_bytes(num_blocks * block_sz_bytes),
+      m_block_sz_bytes(block_sz_bytes),
+      m_free_num_blocks(num_blocks),
+      m_total_num_blocks(num_blocks),
+      m_is_manual(false),
+      m_pmemory(pmemory)  // this memory may have come from a different memory resource
+{
+    init_memory();
+}
+
+void PoolMemory::init_memory()
 {
     /** We would want the size of the of the block to be bigger than a pointer */
     assert(sizeof(void *) <= m_block_sz_bytes);
-    m_pmemory = new std::byte[m_pool_sz_bytes];      // using byte as memory pool base type
     m_phead = reinterpret_cast<void **>(m_pmemory);  // treat list pointer as a pointer to pointer
 
     /** We're using uintptr_t to perform arithmetic operations with confidence
