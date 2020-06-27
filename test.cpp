@@ -7,6 +7,23 @@
 #include <vector>
 
 #include "pool.hpp"
+using type = double;
+void push(std::vector<type *> &ptrs, mem::PoolMemory &pool)
+{
+    ptrs.push_back(static_cast<type *>(pool.get()));
+    std::cout << "Getting element: " << ptrs.back() << " from the memory pool" << std::endl;
+    std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
+    std::cout << "Is the memory pool full? " << (pool.full() ? "Yes." : "No.") << std::endl;
+}
+
+void pop(std::vector<type *> &ptrs, mem::PoolMemory &pool)
+{
+    std::cout << "Returning memory: " << ptrs.back() << " to the memory pool" << std::endl;
+    pool.free(ptrs.back());
+    ptrs.pop_back();
+    std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
+    std::cout << "Is the memory pool empty? " << (pool.empty() ? "Yes." : "No.") << std::endl;
+}
 
 int main()
 {
@@ -14,11 +31,11 @@ int main()
     int bias = 5;
     int iter_num = 5;
     int actual_size;
-    using type = double;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::vector<type *> ptrs;
     std::uniform_int_distribution<int> dist(num_elements - bias, num_elements + bias);
+    std::uniform_int_distribution<int> tf(0, 1);
 
     for (auto iteration = 0; iteration < iter_num; iteration++) {
         actual_size = dist(gen);
@@ -30,21 +47,35 @@ int main()
         std::cout << "Size of the memory pool variable: " << sizeof(pool) << std::endl;
         std::cout << "Size of the memory pool: " << pool.pool_size() << std::endl;
         ptrs.clear();
+
         for (auto i = 0; i < actual_size; i++) {
-            ptrs.push_back(static_cast<type *>(pool.get()));
-            std::cout << "Getting element: " << ptrs.back() << " from the memory pool" << std::endl;
-            std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
-            std::cout << "Is the memory pool full? " << (pool.full() ? "Yes." : "No.") << std::endl;
+            push(ptrs, pool);
         }
 
         pool.get();
 
         std::shuffle(ptrs.begin(), ptrs.end(), gen);
 
-        for (auto &ptr : ptrs) {
-            std::cout << "Returning memory: " << ptr << " to the memory pool" << std::endl;
-            pool.free(ptr);
-            std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
+        for (auto i = 0; i < actual_size; i++) {
+            pop(ptrs, pool);
+        }
+
+        // std::cout << "[TEST] Random number is: " << tf(gen) << std::endl;
+
+        for (auto i = 0; i < actual_size; i++) {
+            if (tf(gen)) {
+                if (pool.full()) {
+                    pop(ptrs, pool);
+                } else {
+                    push(ptrs, pool);
+                }
+            } else {
+                if (pool.empty()) {
+                    push(ptrs, pool);
+                } else {
+                    pop(ptrs, pool);
+                }
+            }
         }
     }
 }
