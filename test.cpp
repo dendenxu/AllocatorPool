@@ -8,19 +8,25 @@
 
 #include "pool.hpp"
 using type = double;
+std::random_device rd;
+std::mt19937 gen(rd());
 void push(std::vector<type *> &ptrs, mem::PoolMemory &pool)
 {
-    ptrs.push_back(static_cast<type *>(pool.get()));
-    std::cout << "Getting element: " << ptrs.back() << " from the memory pool" << std::endl;
+    std::uniform_int_distribution<int> dist(0, ptrs.size());
+    auto index = dist(gen);
+    ptrs.insert(ptrs.begin() + index, static_cast<type *>(pool.get()));
+    std::cout << "Getting element: " << ptrs[index] << " from the memory pool" << std::endl;
     std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
     std::cout << "Is the memory pool full? " << (pool.full() ? "Yes." : "No.") << std::endl;
 }
 
 void pop(std::vector<type *> &ptrs, mem::PoolMemory &pool)
 {
-    std::cout << "Returning memory: " << ptrs.back() << " to the memory pool" << std::endl;
-    pool.free(ptrs.back());
-    ptrs.pop_back();
+    std::uniform_int_distribution<int> dist(0, ptrs.size() - 1);
+    auto index = dist(gen);
+    std::cout << "Returning memory: " << ptrs[index] << " to the memory pool" << std::endl;
+    pool.free(ptrs[index]);
+    ptrs.erase(ptrs.begin() + index);
     std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
     std::cout << "Is the memory pool empty? " << (pool.empty() ? "Yes." : "No.") << std::endl;
 }
@@ -31,8 +37,6 @@ int main()
     int bias = 5;
     int iter_num = 5;
     int actual_size;
-    std::random_device rd;
-    std::mt19937 gen(rd());
     std::vector<type *> ptrs;
     std::uniform_int_distribution<int> dist(num_elements - bias, num_elements + bias);
     std::uniform_int_distribution<int> tf(0, 1);
@@ -76,6 +80,7 @@ int main()
                     pop(ptrs, pool);
                 }
             }
+            // std::shuffle(ptrs.begin(), ptrs.end(), gen); // ! this might be some heavy work
         }
     }
 
