@@ -111,8 +111,6 @@ class ByteMemory
 }  // namespace mem
 ```
 
-
-
 ### 特性
 
 基于这一单向增长，反向减少的特性，这种内存资源仅支持类似堆栈的分配机制：
@@ -152,7 +150,7 @@ class ByteMemory
     Size of a ByteMemory is: 32
     ```
 
-## `Memory Pool`：内存池资源
+## `Pool Memory`：内存池资源
 
 ### 概要
 
@@ -266,7 +264,7 @@ class PoolMemory
     std::size_t m_total_num_blocks;  // total number of blocks
     bool m_is_manual;                // whether the m_pmemory is manually allocated by us
 };
-    
+
 }  // namespace mem
 ```
 
@@ -304,7 +302,7 @@ void PoolMemory::init_memory()
     assert(sizeof(void *) <= m_block_sz_bytes);
     m_phead = reinterpret_cast<void **>(m_pmemory);  // treat list pointer as a pointer to pointer
 
-    /** 
+    /**
      * We're using uintptr_t to perform arithmetic operations with confidence
      * We're not using void * since, well, it's forbidden to perform arithmetic operations on a void *
      */
@@ -371,8 +369,6 @@ void PoolMemory::free(void *pblock)
 }
 ```
 
-
-
 ### 特性
 
 由于我们使用内存池的方式管理相应的内存，上层用户代码可以将此结构想像成一个池子：我们可以随意从中取出一些内存空间，然后将以前取出的空间放回（只要我们保证放回的空间就是原来已经取出的），而不需要像`ByteMemory`那样担心存取的顺序问题。用户代码完全可以将所有从中取出的空间一视同仁。
@@ -390,4 +386,6 @@ void PoolMemory::free(void *pblock)
 
 1. 相对于`ByteMemory`的单变量操作，`PoolMemory`会进行内存和指针操作，缓存命中率相对较低，且取内存往往比普通的加法操作更耗时，因此虽然两者的时间复杂度都为常数级别，但`PoolMemory`的分配和释放速度会相对慢于`ByteMemory`。
 2. 这一内存资源无法支持任意大小内存的分配和释放要求，这是由`PoolMemory`的结构决定的。
+
+## 测试
 

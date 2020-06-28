@@ -16,12 +16,7 @@ class PoolMemory
     PoolMemory(PoolMemory &&alloc) = delete;                // delete move constructor
     PoolMemory &operator=(PoolMemory &&rhs) = delete;       // delete move-assignment operator
 
-    ~PoolMemory()
-    {
-        if (m_is_manual) {
-            delete[] m_pmemory;
-        }
-    }  // delete the pre-allocated memory pool chunk
+    ~PoolMemory();
 
     std::size_t block_size() { return m_block_sz_bytes; }                  // return block size in byte
     std::size_t pool_size() { return m_pool_sz_bytes; }                    // return memory pool size in byte
@@ -57,20 +52,15 @@ class PoolMemory
 class ByteMemory
 {
    public:
-    ByteMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
-    ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
+    ByteMemory(const std::size_t size);
+    ByteMemory(const std::size_t size, std::byte *pointer);
 
     ByteMemory(const ByteMemory &alloc) = delete;           // delete copy constructor
     ByteMemory &operator=(const ByteMemory &rhs) = delete;  // delete copy-assignment operator
     ByteMemory(ByteMemory &&alloc) = delete;                // delete move constructor
     ByteMemory &operator=(ByteMemory &&rhs) = delete;       // delete move-assignment operator
 
-    ~ByteMemory()
-    {
-        if (m_is_manual) {
-            delete[] m_pmemory;
-        }
-    }  // delete the pre-allocated byte chunk chunk
+    ~ByteMemory();
 
     std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
     std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
@@ -81,30 +71,10 @@ class ByteMemory
 
     // return a nullptr if the byte chunk is already full
     // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
-    void *get(std::size_t size)
-    {
-        if (m_index + size > m_total_size) {
-            std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
-            return nullptr;
-        } else {
-            void *ptr = m_pmemory + m_index;
-            m_index += size;
-            return ptr;
-        }
-    }
+    void *get(std::size_t size);
 
     // make sure the pblock is one of the pointers that you get from this byte chunk
-    void free(void *pblock, std::size_t size)
-    {
-        if (m_index < size) {  // this should not happen if you're calling it right
-            std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
-        } else {
-            m_index -= size;
-            if (m_index + m_pmemory != pblock) {  // this should not happen if you're calling it right
-                std::cerr << "[ERROR] You can only give back what you've taken away, and in the right order" << std::endl;
-            }
-        }
-    }
+    void free(void *pblock, std::size_t size);
 
    private:
     std::byte *m_pmemory;      // pointer to the byte array
