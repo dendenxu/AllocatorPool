@@ -7,20 +7,18 @@
 #include <vector>
 
 #include "pool.hpp"
-using type = double;
-std::random_device rd;
-std::mt19937 gen(rd());
-void push(std::vector<type *> &ptrs, mem::PoolMemory &pool)
+
+void push_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen)
 {
     std::uniform_int_distribution<int> dist(0, ptrs.size());
     auto index = dist(gen);
-    ptrs.insert(ptrs.begin() + index, static_cast<type *>(pool.get()));
+    ptrs.insert(ptrs.begin() + index, static_cast<void *>(pool.get()));
     std::cout << "Getting element: " << ptrs[index] << " from the memory pool" << std::endl;
     std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
     std::cout << "Is the memory pool full? " << (pool.full() ? "Yes." : "No.") << std::endl;
 }
 
-void pop(std::vector<type *> &ptrs, mem::PoolMemory &pool)
+void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen)
 {
     std::uniform_int_distribution<int> dist(0, ptrs.size() - 1);
     auto index = dist(gen);
@@ -37,9 +35,13 @@ int main()
     int bias = 5;
     int iter_num = 5;
     int actual_size;
-    std::vector<type *> ptrs;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::vector<void *> ptrs;
     std::uniform_int_distribution<int> dist(num_elements - bias, num_elements + bias);
     std::uniform_int_distribution<int> tf(0, 1);
+
+    using type = double;
 
     for (auto iteration = 0; iteration < iter_num; iteration++) {
         actual_size = dist(gen);
@@ -53,7 +55,7 @@ int main()
         ptrs.clear();
 
         for (auto i = 0; i < actual_size; i++) {
-            push(ptrs, pool);
+            push_random(ptrs, pool, gen);
         }
 
         pool.get();
@@ -61,7 +63,7 @@ int main()
         std::shuffle(ptrs.begin(), ptrs.end(), gen);
 
         for (auto i = 0; i < actual_size; i++) {
-            pop(ptrs, pool);
+            pop_random(ptrs, pool, gen);
         }
 
         // std::cout << "[TEST] Random number is: " << tf(gen) << std::endl;
@@ -69,18 +71,23 @@ int main()
         for (auto i = 0; i < actual_size; i++) {
             if (tf(gen)) {
                 if (pool.full()) {
-                    pop(ptrs, pool);
+                    pop_random(ptrs, pool, gen);
                 } else {
-                    push(ptrs, pool);
+                    push_random(ptrs, pool, gen);
                 }
             } else {
                 if (pool.empty()) {
-                    push(ptrs, pool);
+                    push_random(ptrs, pool, gen);
                 } else {
-                    pop(ptrs, pool);
+                    pop_random(ptrs, pool, gen);
                 }
             }
             // std::shuffle(ptrs.begin(), ptrs.end(), gen); // ! this might be some heavy work
+        }
+        if (!ptrs.empty()) {
+            for (auto i = 0; i < ptrs.size(); i++) {
+                pop_random(ptrs, pool, gen);
+            }
         }
     }
 
