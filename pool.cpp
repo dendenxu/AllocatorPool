@@ -158,7 +158,7 @@ void *BidiMemory::get(std::size_t size)
 }
 
 // make sure the pblock is one of the pointers that you get from this byte chunk
-void BidiMemory::free(std::size_t size)
+void BidiMemory::free(void *pblock, std::size_t size)
 {
     if (m_head < size) {  // this should not happen if you're calling it right
         std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;

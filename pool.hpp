@@ -96,24 +96,24 @@ class BidiMemory
 
     ~BidiMemory();
 
-    std::size_t free_count() { return m_total_size - m_head; }  // return number of free blocks inside the byte chunk
-    std::size_t size() { return m_head; }                       // return the number of used space in the byte chunk
-    std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
-    bool empty() { return m_head == 0; }                        // return whether the byte chunk is empty
-    bool full() { return m_head == m_total_size; }              // return whether the byte chunk is full
-    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
+    std::size_t free_count() { return m_total_size - m_head; }     // return number of free blocks inside the byte chunk
+    std::size_t size() { return m_head; }                          // return the number of used space in the byte chunk
+    std::size_t capacity() { return m_total_size; }                // return total number of blocks that this pool can hold
+    bool empty() { return m_head == 0; }                           // return whether the byte chunk is empty
+    bool full() { return m_head == m_total_size && m_tail == 0; }  // return whether the byte chunk is full
+    bool has_upper() { return ~m_is_manual; }                      // return whether m_pmemory's raw mem comes from an upper stream
 
     // return a nullptr if the byte chunk is already full
     // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
     void *get(std::size_t size);
 
     // make sure the pblock is one of the pointers that you get from this byte chunk
-    void free(std::size_t size);
+    void free(void *pblock, std::size_t size);
 
    private:
     std::byte *m_pmemory;      // pointer to the byte array
-    std::size_t m_head;       // current index of the free memory
-    std::size_t m_tail;       // current index of the used memory
+    std::size_t m_head;        // current index of the free memory
+    std::size_t m_tail;        // current index of the used memory
     std::size_t m_total_size;  // total number of blocks
     bool m_is_manual;          // whether the m_pmemory is manually allocated by us
 };

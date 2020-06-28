@@ -14,9 +14,9 @@
 
 #define VERBOSE  // whether we're to silent everybody
 
-#define TEST_POOL  // are we test pool memory resource?
+// #define TEST_POOL  // are we test pool memory resource?
 
-#define TEST_MONO  // are we test monotonic memory resource?
+// #define TEST_MONO  // are we test monotonic memory resource?
 
 #define TEST_BIDI  // are we test bidirectional memory resource?
 
@@ -37,6 +37,7 @@ void print_info(MemoT &memo)
         << " blocks"
         << std::endl;
     std::cout << "Is the memory resource full? " << (memo.full() ? "Yes" : "No") << std::endl;
+    std::cout << "Is the memory resource empty? " << (memo.empty() ? "Yes" : "No") << std::endl;
 }
 
 /** Get a memory pointer from the given memory resource and insert it to the back of the given pointer vector */
@@ -101,7 +102,10 @@ void pop(VectT &ptrs_with_sz, MemoT &memo, duration &span, std::size_t index = -
 #endif  // VERBOSE
 
     ptrs_with_sz.erase(ptrs_with_sz.begin() + index);
+    auto begin = hiclock::now();
     memo.free(pair.first, pair.second);
+    auto end = hiclock::now();
+    span += duration_cast<duration>(end - begin);
 #ifdef VERBOSE
     print_info(memo);
 #endif  // VERBOSE
@@ -165,7 +169,7 @@ int main()
         actual_size = dist(gen);  // range: [num_blocks-bias, num_blocks+bias]
 
         begin = hiclock::now();
-        mem::MonoMemory mono(sizeof(type) * actual_size);
+        mem::BidiMemory bidi(sizeof(type) * actual_size);
         end = hiclock::now();
 
         std::cout
@@ -176,21 +180,21 @@ int main()
 
         /** Print some auxiliary information */
         std::cout << "Our actual size is: " << actual_size << std::endl;
-        std::cout << "Initial size of this byte memory: " << mono.size() << std::endl;
-        std::cout << "Initial capacity of this byte memory: " << mono.capacity() << std::endl;
-        std::cout << "Initial free space of this byte memory: " << mono.free_count() << std::endl;
-        std::cout << "Size of the byte memory variable: " << sizeof(mono) << std::endl;
-        std::cout << "Size of the byte memory: " << mono.capacity() << std::endl;
+        std::cout << "Initial size of this byte memory: " << bidi.size() << std::endl;
+        std::cout << "Initial capacity of this byte memory: " << bidi.capacity() << std::endl;
+        std::cout << "Initial free space of this byte memory: " << bidi.free_count() << std::endl;
+        std::cout << "Size of the byte memory variable: " << sizeof(bidi) << std::endl;
+        std::cout << "Size of the byte memory: " << bidi.capacity() << std::endl;
 
         std::vector<std::pair<void *, std::size_t>> ptrs_with_sz;
 
         auto count = 0;
         span = duration();
-        while (!mono.full()) {
+        while (!bidi.full()) {
             count++;
-            push(ptrs_with_sz, mono, gen, span);
+            push_random(ptrs_with_sz, bidi, gen, span);
         }
-        std::cout << "Is the memory resource full? " << (mono.full() ? "Yes" : "No") << std::endl;
+        std::cout << "Is the memory resource full? " << (bidi.full() ? "Yes" : "No") << std::endl;
 
         std::cout
             << "It takes "
@@ -204,7 +208,7 @@ int main()
 
         auto size = ptrs_with_sz.size();
         for (auto i = 0; i < size; i++) {
-            push(ptrs_with_sz, mono, gen, span);
+            pop_random(ptrs_with_sz, bidi, gen, span);
         }
 
         std::cout
@@ -261,7 +265,7 @@ int main()
 
         auto size = ptrs_with_sz.size();
         for (auto i = 0; i < size; i++) {
-            push(ptrs_with_sz, mono, gen, span);
+            pop(ptrs_with_sz, mono, gen, span);
         }
 
         std::cout
