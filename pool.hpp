@@ -79,6 +79,7 @@ class MonoMemory
 
     // make sure the pblock is one of the pointers that you get from this byte chunk
     void free(void *pblock, std::size_t size);
+    void free(std::size_t size);
 
    private:
     std::byte *m_pmemory;      // pointer to the byte array
@@ -114,6 +115,7 @@ class BidiMemory
 
     // make sure the pblock is one of the pointers that you get from this byte chunk
     void free(void *pblock, std::size_t size);
+    void free(std::size_t size);
 
    private:
     std::byte *m_pmemory;      // pointer to the byte array

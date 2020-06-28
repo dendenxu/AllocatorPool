@@ -142,14 +142,14 @@ void *MonoMemory::get(std::size_t size)
 // make sure the pblock is one of the pointers that you get from this byte chunk
 void MonoMemory::free(void *pblock, std::size_t size)
 {
-    if (m_index < size) {  // this should not happen if you're calling it right
-        std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
-    } else {
-        m_index -= size;
-        if (m_index + m_pmemory != pblock) {  // this should not happen if you're calling it right
-            std::cerr << "[ERROR] You can only give back what you've taken away, and in the right order" << std::endl;
-        }
-    }
+    free(size);
+    assert(pblock == m_pmemory + m_index);
+}
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void MonoMemory::free(std::size_t size)
+{
+    assert(m_index < size);
+    m_index -= size;
 }
 
 /** Bidirectional Memory Resource Implementation */
@@ -179,12 +179,15 @@ void BidiMemory::free(void *pblock, std::size_t size)
 {
     // ! this is a extremely weak condition!
     assert(pblock >= m_pmemory && pblock < m_pmemory + m_head);
-    if (m_head < size) {  // this should not happen if you're calling it right
-        std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
-    } else {
-        m_tail += size;
-        if (m_tail == m_head) {
-            m_tail = m_head = 0;
-        }
+    free(size);
+}
+
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void BidiMemory::free(std::size_t size)
+{
+    assert(m_tail + size <= m_head);
+    m_tail += size;
+    if (m_tail == m_head) {
+        m_tail = m_head = 0;
     }
 }
