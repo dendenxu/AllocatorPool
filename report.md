@@ -1,6 +1,6 @@
-# `Memory Resource`: 内存资源管理
+# `Memory Resource`：内存资源管理
 
-## `Byte Memory`
+## `Byte Memory`：堆栈式内存资源
 
 ### 概要
 
@@ -47,6 +47,8 @@ void free(void *pblock, std::size_t size);
 具体实现：
 
 ```c++
+namespace mem
+{
 class ByteMemory
 {
    public:
@@ -106,6 +108,7 @@ class ByteMemory
     bool m_is_manual;          // whether the m_pmemory is manually allocated by us
 };
 
+}  // namespace mem
 ```
 
 
@@ -149,10 +152,242 @@ class ByteMemory
     Size of a ByteMemory is: 32
     ```
 
-## `Memory Pool`
+## `Memory Pool`：内存池资源
 
 ### 概要
 
 我们通过内存池这一结构来管理内存的分配与释放，我们提供类似于普通线性堆栈式内存资源的接口，不额外占据内存以实现一个内存链表。
 
 由于我们将链表地址直接映射到了需要分配的内存池中，这一结构的空间复杂度为`O(1)`。
+
+但由于我们需要初始化相应位置的内存，创建这一结构的时间复杂度为`O(num_blocks)`。
+
+幸运的是，在内存池资源创建完毕后，获取和释放内存的操作的时间复杂度就变成了`O(1)`。只涉及到几个简单的指针操作与`static_cast<>`。
+
+值得注意的是，由于我们在内存池的原始内存位置直接存放了相应的指针，我们要求池中每一个块的大小至少为`sizeof(void *)`，以实现对内存的更高效利用。
+
+- 若我们不进行这样的要求，让我们做出如下假设：
+
+    1. 指针大小（`sizeof(void *)`）为：`8 Bytes`
+    2. 内存池块大小为`4 Bytes`
+
+    容易发现，在更新某一块内存中储存的指针时，它会与其相邻块的内容发生重叠，造成紊乱。因此上述要求是必须的
+
+- 退一步讲，若我们不进行这样的实现，而是通过一个外部结构（数组或链表）来管理相关内存指针，则会发生严重的内存浪费。
+
+    即使我们的外部资源除了一个8字节的指针外不存储任何信息，这一内存消耗也是严重的：
+
+    外部数据需要的内存量甚至大于实际分配出的内存。
+
+### 具体实现
+
+如上所述，我们通过在原生内存上构建指针来实现这一内存池结构。
+
+类似于`ByteMemory`，我们提供了如下接口：
+
+```c++
+PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
+PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
+std::size_t block_size();
+std::size_t pool_size();
+std::size_t free_count();
+std::size_t size();
+std::size_t capacity();
+bool empty();
+bool full();
+bool has_upper();
+void *get();
+void free(void *pblock);
+```
+
+- 类似的，核心接口是`get`与`free`两个函数，他们提供了分配和释放内存的功能。
+
+    1.  `get`函数会取得当前`free_list`的最前端内存`m_phead`，并将内部的前端记录器更新为他的下一段内存的指针，也就是我们在初始化时就已经写入对应内存的。
+    2. `free`函数会接受一个内存地址，它无法判断这段内存地址究竟是否来自以前分配出去的，它会将参数中的地址作为新的`m_phead`也就是`free_list`的头部，并将旧头部的地址储存到这一个内存下。
+
+- 类似的，初始化过程中，我们提供了两种类型，上层代码可以通过选择是否传入`p_memory`参数来选择是否让`PoolMemory`变量管理内存。
+
+    不同于`ByteMemory`，两个构造函数都会调用内部接口`init_memory`以初始化`m_pmemory`指向的内存段（将内存段按顺序填充为下一段内存的头地址，构成一个链表。除了最后一段存储一个空指针（`nullptr`））。
+
+- 其他控制接口类似于我们在`ByteMemory`中使用的。
+
+具体实现
+
+头文件：
+
+```c++
+namespace mem
+{
+class PoolMemory
+{
+   public:
+    PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
+    PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
+
+    PoolMemory(const PoolMemory &alloc) = delete;           // delete copy constructor
+    PoolMemory &operator=(const PoolMemory &rhs) = delete;  // delete copy-assignment operator
+    PoolMemory(PoolMemory &&alloc) = delete;                // delete move constructor
+    PoolMemory &operator=(PoolMemory &&rhs) = delete;       // delete move-assignment operator
+
+    ~PoolMemory()
+    {
+        if (m_is_manual) {
+            delete[] m_pmemory;
+        }
+    }  // delete the pre-allocated memory pool chunk
+
+    std::size_t block_size() { return m_block_sz_bytes; }                  // return block size in byte
+    std::size_t pool_size() { return m_pool_sz_bytes; }                    // return memory pool size in byte
+    std::size_t free_count() { return m_free_num_blocks; }                 // return number of free blocks inside the memory pool
+    std::size_t size() { return m_total_num_blocks - m_free_num_blocks; }  // return the number of used space in the memory pool
+    std::size_t capacity() { return m_total_num_blocks; }                  // return total number of blocks that this pool can hold
+    bool empty() { return m_free_num_blocks == m_total_num_blocks; }       // return whether the memory pool is empty
+    bool full() { return m_free_num_blocks == 0; }                         // return whether the memory pool is full
+    bool has_upper() { return ~m_is_manual; }                              // return whether m_pmemory's raw mem comes from an upper stream
+
+    // return a nullptr if the memory pool is already full
+    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get();
+
+    // make sure the pblock is one of the pointers that you get from this memory pool
+    void free(void *pblock);
+
+   private:
+    void init_memory();  // this function will fill the memory with pointers to the next trunk for initialization
+
+    /** Current size of a memory pool variable should be 48 bytes
+     *  considering 8 byte for one pointer and size_t on my machine
+     */
+    std::byte *m_pmemory;            // pointer to the first address of the pool, used to relase all the memory
+    void **m_phead;                  // pointer to pointer, used to point to the head of the free list
+    std::size_t m_pool_sz_bytes;     //the size in bytes of the pool
+    std::size_t m_block_sz_bytes;    // size in bytes of each block
+    std::size_t m_free_num_blocks;   // number of blocks
+    std::size_t m_total_num_blocks;  // total number of blocks
+    bool m_is_manual;                // whether the m_pmemory is manually allocated by us
+};
+    
+}  // namespace mem
+```
+
+源码文件：
+
+```c++
+#include "pool.hpp"
+using namespace mem;
+
+PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks)
+    : m_pool_sz_bytes(num_blocks * block_sz_bytes),
+      m_block_sz_bytes(block_sz_bytes),
+      m_free_num_blocks(num_blocks),
+      m_total_num_blocks(num_blocks),
+      m_is_manual(true)
+{
+    m_pmemory = new std::byte[m_pool_sz_bytes];  // using byte as memory pool base type
+    init_memory();
+}
+
+PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory)
+    : m_pool_sz_bytes(num_blocks * block_sz_bytes),
+      m_block_sz_bytes(block_sz_bytes),
+      m_free_num_blocks(num_blocks),
+      m_total_num_blocks(num_blocks),
+      m_is_manual(false),
+      m_pmemory(pmemory)  // this memory may have come from a different memory resource
+{
+    init_memory();
+}
+
+void PoolMemory::init_memory()
+{
+    /** We would want the size of the of the block to be bigger than a pointer */
+    assert(sizeof(void *) <= m_block_sz_bytes);
+    m_phead = reinterpret_cast<void **>(m_pmemory);  // treat list pointer as a pointer to pointer
+
+    /** 
+     * We're using uintptr_t to perform arithmetic operations with confidence
+     * We're not using void * since, well, it's forbidden to perform arithmetic operations on a void *
+     */
+    std::uintptr_t start_addr = reinterpret_cast<std::uintptr_t>(m_pmemory);  // where the whole chunk memory begins
+    std::uintptr_t end_addr = start_addr + m_pool_sz_bytes;                   // where the chunk memory ends
+
+    /** We use the same space as the actual block to be stored here to store the free list pointers */
+    // construct the linked list from raw memory
+    for (auto i = 0; i < m_total_num_blocks; i++) {
+        std::uintptr_t curr_addr = start_addr + i * m_block_sz_bytes;  // current block's address
+        std::uintptr_t next_addr = curr_addr + m_block_sz_bytes;       // next block's address
+        void **curr_mem = reinterpret_cast<void **>(curr_addr);        // a pointer, same value as curr_addr to support modification
+        if (next_addr >= end_addr) {
+            *curr_mem = nullptr;
+        } else {
+            *curr_mem = reinterpret_cast<void *>(next_addr);
+        }
+    }
+}
+
+void *PoolMemory::get()
+{
+    // if (m_pmemory == nullptr) {  // This should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return nullptr;
+    // }
+
+    if (m_phead != nullptr) {
+        m_free_num_blocks--;  // decrement the number of free blocks
+
+        void *pblock = static_cast<void *>(m_phead);  // get current free list value
+        m_phead = static_cast<void **>(*m_phead);     // update free list head
+
+        return pblock;
+    } else {  // out of memory blocks (for an block with size m_block_sz_bytes)
+        std::cerr << "ERROR " << __FUNCTION__ << ": out of memory blocks" << std::endl;
+        return nullptr;  // if you get a nullptr from a memory pool, it's time to allocate a new one
+    }
+}
+
+void PoolMemory::free(void *pblock)
+{
+    if (pblock == nullptr) {
+        // do nothing if we're freeing a nullptr
+        // although this situation is declared undefined in C++ Standard
+        return;
+    }
+
+    // if (m_pmemory == nullptr) {  // this should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return;
+    // }
+
+    m_free_num_blocks++;  // increment the number of blocks
+
+    if (m_phead == nullptr) {  // the free list is full (we can also check this by validating size)
+        m_phead = static_cast<void **>(pblock);
+        *m_phead = nullptr;
+    } else {
+        void *ppreturned_block = static_cast<void *>(m_phead);  // temporaryly store the current head as nex block
+        m_phead = static_cast<void **>(pblock);
+        *m_phead = ppreturned_block;
+    }
+}
+```
+
+
+
+### 特性
+
+由于我们使用内存池的方式管理相应的内存，上层用户代码可以将此结构想像成一个池子：我们可以随意从中取出一些内存空间，然后将以前取出的空间放回（只要我们保证放回的空间就是原来已经取出的），而不需要像`ByteMemory`那样担心存取的顺序问题。用户代码完全可以将所有从中取出的空间一视同仁。
+
+但对应的，有失就有得，`PoolMemory`无法处理任意大小的内存分配请求。这是显而易见的，如果我们考虑到内存池的基本结构。
+
+优点：
+
+1. 支持任意顺序的内存分配和释放。
+2. 在初始化时支持任意数量与任意分块大小的内存分配与释放（在实际物理内存充足的情况下）。
+3. 不会产生内存泄漏，只有当`m_pmemory`指向的大块内存空间已经被全部耗尽时才会停止继续分配内存。
+4. 不会产生内存碎片，纵使在一系列的随机分配和释放过程中，我们会发现内存的顺序被打乱，且为分配内存与已分配内存会交替出现，但我们通过链表结构解决了这一问题。复杂的结构通过链表完整的到完整链接。
+
+缺点：
+
+1. 相对于`ByteMemory`的单变量操作，`PoolMemory`会进行内存和指针操作，缓存命中率相对较低，且取内存往往比普通的加法操作更耗时，因此虽然两者的时间复杂度都为常数级别，但`PoolMemory`的分配和释放速度会相对慢于`ByteMemory`。
+2. 这一内存资源无法支持任意大小内存的分配和释放要求，这是由`PoolMemory`的结构决定的。
+
