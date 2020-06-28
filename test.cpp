@@ -18,8 +18,6 @@
 
 #define TEST_MONO  // are we test monotonic memory resource?
 
-#define TEST_BIDI  // are we test bidirectional memory resource?
-
 using hiclock = std::chrono::high_resolution_clock;
 using time_point = std::chrono::time_point<hiclock>;
 using duration = std::chrono::duration<double>;
@@ -98,7 +96,7 @@ void pop(VectT &ptrs_with_sz, MemoT &memo, duration &span, std::size_t index = -
     if (index == -1) index = ptrs_with_sz.size() - 1;
     auto pair = ptrs_with_sz[index];
 #ifdef VERBOSE
-    std::cout << "Returning block: " << pair.first << " to the memory resource" << std::endl;
+    std::cout << "Returning block: " << pair.first << " to the memory resource with size " << pair.second << std::endl;
 #endif  // VERBOSE
 
     ptrs_with_sz.erase(ptrs_with_sz.begin() + index);
@@ -163,63 +161,6 @@ int main()
 
     time_point begin;
     time_point end;
-
-#ifdef TEST_BIDI
-    for (auto iteration = 0; iteration < num_iters; iteration++) {
-        actual_size = dist(gen);  // range: [num_blocks-bias, num_blocks+bias]
-
-        begin = hiclock::now();
-        mem::BidiMemory bidi(sizeof(type) * actual_size);
-        end = hiclock::now();
-
-        std::cout
-            << "It takes "
-            << duration_cast<duration>(end - begin).count()
-            << " seconds to create and initialize the byte memory resource"
-            << std::endl;
-
-        /** Print some auxiliary information */
-        std::cout << "Our actual size is: " << actual_size << std::endl;
-        std::cout << "Initial size of this byte memory: " << bidi.size() << std::endl;
-        std::cout << "Initial capacity of this byte memory: " << bidi.capacity() << std::endl;
-        std::cout << "Initial free space of this byte memory: " << bidi.free_count() << std::endl;
-        std::cout << "Size of the byte memory variable: " << sizeof(bidi) << std::endl;
-        std::cout << "Size of the byte memory: " << bidi.capacity() << std::endl;
-
-        std::vector<std::pair<void *, std::size_t>> ptrs_with_sz;
-
-        auto count = 0;
-        span = duration();
-        while (!bidi.full()) {
-            count++;
-            push_random(ptrs_with_sz, bidi, gen, span);
-        }
-        std::cout << "Is the memory resource full? " << (bidi.full() ? "Yes" : "No") << std::endl;
-
-        std::cout
-            << "It takes "
-            << span.count()
-            << " seconds to get this much times, which averages to "
-            << span.count() / count
-            << " seconds per operations"
-            << std::endl;
-
-        span = duration();
-
-        auto size = ptrs_with_sz.size();
-        for (auto i = 0; i < size; i++) {
-            pop_random(ptrs_with_sz, bidi, gen, span);
-        }
-
-        std::cout
-            << "It takes "
-            << span.count()
-            << " seconds to free this much times, which averages to "
-            << span.count() / size
-            << " seconds per operations"
-            << std::endl;
-    }
-#endif  // TEST_BIDI
 
 #ifdef TEST_MONO
     for (auto iteration = 0; iteration < num_iters; iteration++) {
