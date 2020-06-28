@@ -148,7 +148,7 @@ void MonoMemory::free(void *pblock, std::size_t size)
 // make sure the pblock is one of the pointers that you get from this byte chunk
 void MonoMemory::free(std::size_t size)
 {
-    assert(m_index < size);
+    assert(m_index >= size);
     m_index -= size;
 }
 
