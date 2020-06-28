@@ -7,24 +7,24 @@
 #include <bitset>     // to create arbitrarily sized type
 #include <chrono>     // to use high resolution clock
 #include <random>     // to use random generator and random devices
+#include <ratio>
 #include <vector>
 
 #include "pool.hpp"
 using hiclock = std::chrono::high_resolution_clock;
 using time_point = std::chrono::time_point<hiclock>;
-using std::chrono::duration;
 using std::chrono::duration_cast;
-using std::chrono::seconds;
+using duration = std::chrono::duration<double>;
 using type = std::bitset<1024>;  // we can change this type to test for different size of allocation
 /** Get a memory pointer from the given memory pool and insert it to a random position of the given pointer vector */
-void push_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen, duration<double> &span, bool silent = false)
+void push_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen, duration &span, bool silent = false)
 {
     std::uniform_int_distribution<std::size_t> dist(0, ptrs.size());  // we can insert at [0, ptrs.size()]
     std::size_t index = dist(gen);
     auto begin = hiclock::now();
     auto pmem = pool.get();
     auto end = hiclock::now();
-    span += duration_cast<duration<double>>(end - begin);
+    span += duration_cast<duration>(end - begin);
     ptrs.insert(ptrs.begin() + index, static_cast<void *>(pmem));
     if (!silent) {
         std::cout << "Getting block: " << ptrs[index] << " from the memory pool" << std::endl;
@@ -40,7 +40,7 @@ void push_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 
 }
 
 /** Select a random position from a given pointer vector and give it back to the given memory pool */
-void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen, duration<double> &span, bool silent = false)
+void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen, duration &span, bool silent = false)
 {
     std::uniform_int_distribution<std::size_t> dist(0, ptrs.size() - 1);  // we can erase at [0, ptrs.size()), half-closed range
     std::size_t index = dist(gen);
@@ -50,7 +50,7 @@ void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &
     auto begin = hiclock::now();
     pool.free(ptrs[index]);
     auto end = hiclock::now();
-    span += duration_cast<duration<double>>(end - begin);
+    span += duration_cast<duration>(end - begin);
     ptrs.erase(ptrs.begin() + index);
     if (!silent) {
         std::cout
@@ -68,7 +68,7 @@ int main()
 {
     bool silent = true;        // are we silencing output?
     int num_blocks = 100000;   // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
-    int bias = 5;              // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
+    int bias = 500;              // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
     int num_iters = 5;         // number of iteration to test, each with a newly allocated PoolMemory and random block count
     int actual_size;           // reused in every iteration, range in [num_blocks-bias, num_blocks+bias]
     std::random_device rd;     // a random device, depends on the current system, increase entropy of random gen, heavy: involving file IO
@@ -76,7 +76,7 @@ int main()
     std::vector<void *> ptrs;  // the vector of pointers to be cleared and reused in every iterations
     std::uniform_int_distribution<std::size_t> dist(num_blocks - bias, num_blocks + bias);
     std::uniform_int_distribution<bool> tf(false, true);
-    duration<double> span = seconds::zero();
+    duration span = duration();
     // using type = int;  // should produce assertion failure, on my machine sizeof(int) == 4
     // using type = int;  // should produce a densely used memory pool, on my machine sizeof(double) == 8 == sizeof(void *)
 
@@ -89,7 +89,7 @@ int main()
 
         std::cout
             << "It takes "
-            << duration_cast<duration<double>>(end - begin).count()
+            << duration_cast<duration>(end - begin).count()
             << " seconds to create and initialize the memory pool"
             << std::endl;
 
@@ -105,7 +105,7 @@ int main()
 
         // begin = hiclock::now();
         /** Exhaust all the memory available in the memory pool */
-        span = seconds::zero();
+        span = duration();
         for (auto i = 0; i < actual_size; i++) {
             push_random(ptrs, pool, gen, span, silent);
         }
@@ -127,7 +127,7 @@ int main()
         // std::shuffle(ptrs.begin(), ptrs.end(), gen); // might not be needed anymore since our push/pop is random
 
         /** Returning all the memory exhausted before */
-        span = seconds::zero();
+        span = duration();
         for (auto i = 0; i < actual_size; i++) {
             pop_random(ptrs, pool, gen, span, silent);
         }
