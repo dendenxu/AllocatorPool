@@ -84,5 +84,10 @@ int main()
         }
     }
 
+    std::cout << "Size of a std::size_t is: " << sizeof(void *) << std::endl;
+    std::cout << "Size of a void * is: " << sizeof(void *) << std::endl;
+    std::cout << "Size of a bool is: " << sizeof(bool) << std::endl;
+    std::cout << "Size of a PoolMemory is: " << sizeof(mem::PoolMemory) << std::endl;
+    std::cout << "Size of a ByteMemory is: " << sizeof(mem::ByteMemory) << std::endl;
     std::cout << "Test is completed, bye." << std::endl;
 }
