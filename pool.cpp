@@ -72,16 +72,16 @@ void *PoolMemory::get()
 
 void PoolMemory::free(void *pblock)
 {
-    // if (pblock == nullptr) {
-    //     // do nothing if we're freeing a nullptr
-    //     // although this situation is declared undefined in C++ Standard
-    //     return;
-    // }
-
-    if (m_pmemory == nullptr) {  // this should not happen
-        std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    if (pblock == nullptr) {
+        // do nothing if we're freeing a nullptr
+        // although this situation is declared undefined in C++ Standard
         return;
     }
+
+    // if (m_pmemory == nullptr) {  // this should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return;
+    // }
 
     m_free_num_blocks++;  // increment the number of blocks
 
