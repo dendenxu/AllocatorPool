@@ -3,6 +3,7 @@
  */
 
 #include <algorithm>
+#include <bitset>
 #include <random>
 #include <vector>
 
@@ -41,7 +42,7 @@ int main()
     std::uniform_int_distribution<int> dist(num_elements - bias, num_elements + bias);
     std::uniform_int_distribution<int> tf(0, 1);
 
-    using type = double;
+    using type = std::bitset<1024>;
 
     for (auto iteration = 0; iteration < iter_num; iteration++) {
         actual_size = dist(gen);
@@ -84,14 +85,20 @@ int main()
             }
             // std::shuffle(ptrs.begin(), ptrs.end(), gen); // ! this might be some heavy work
         }
+        std::cout << "The pool's current size: " << pool.size() << std::endl;
+        std::cout << "The ptrs's current size: " << ptrs.size() << std::endl;
         if (!ptrs.empty()) {
-            for (auto i = 0; i < ptrs.size(); i++) {
+            std::size_t size = ptrs.size();
+            for (auto i = 0; i < size; i++) {
+                std::cout << "Popping since not empty yet, index is: " << i << " size is: " << ptrs.size() << std::endl;
                 pop_random(ptrs, pool, gen);
             }
         }
     }
 
-    std::cout << "Size of a std::size_t is: " << sizeof(void *) << std::endl;
+    std::cout << "Size of a type is: " << sizeof(type) << std::endl;
+    std::cout << "Size of a bitset<128> is: " << sizeof(std::bitset<128>) << std::endl;
+    std::cout << "Size of a std::size_t is: " << sizeof(std::size_t) << std::endl;
     std::cout << "Size of a void * is: " << sizeof(void *) << std::endl;
     std::cout << "Size of a bool is: " << sizeof(bool) << std::endl;
     std::cout << "Size of a PoolMemory is: " << sizeof(mem::PoolMemory) << std::endl;
