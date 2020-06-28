@@ -56,11 +56,7 @@ class PoolMemory
 class ByteMemory
 {
    public:
-    ByteMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true)
-    {
-        m_pmemory = new std::byte[size];
-        m_is_manual = true;
-    }
+    ByteMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
     ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
 
     ByteMemory(const ByteMemory &alloc) = delete;           // delete copy constructor

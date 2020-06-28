@@ -29,9 +29,10 @@ void PoolMemory::init_memory()
     assert(sizeof(void *) <= m_block_sz_bytes);
     m_phead = reinterpret_cast<void **>(m_pmemory);  // treat list pointer as a pointer to pointer
 
-    /** We're using uintptr_t to perform arithmetic operations with confidence
-         * We're not using void * since, well, it's forbidden to perform arithmetic operations on a void *
-         */
+    /** 
+     * We're using uintptr_t to perform arithmetic operations with confidence
+     * We're not using void * since, well, it's forbidden to perform arithmetic operations on a void *
+     */
     std::uintptr_t start_addr = reinterpret_cast<std::uintptr_t>(m_pmemory);  // where the whole chunk memory begins
     std::uintptr_t end_addr = start_addr + m_pool_sz_bytes;                   // where the chunk memory ends
 
