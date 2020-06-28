@@ -15,7 +15,7 @@ void push_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 
     ptrs.insert(ptrs.begin() + index, static_cast<void *>(pool.get()));
     std::cout << "Getting element: " << ptrs[index] << " from the memory pool" << std::endl;
     std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
-    std::cout << "Is the memory pool full? " << (pool.full() ? "Yes." : "No.") << std::endl;
+    std::cout << "Is the memory pool full? " << (pool.full() ? "Yes" : "No") << std::endl;
 }
 
 void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &gen)
@@ -26,7 +26,7 @@ void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &
     pool.free(ptrs[index]);
     ptrs.erase(ptrs.begin() + index);
     std::cout << "Currently we have " << pool.free_count() << " free element space" << std::endl;
-    std::cout << "Is the memory pool empty? " << (pool.empty() ? "Yes." : "No.") << std::endl;
+    std::cout << "Is the memory pool empty? " << (pool.empty() ? "Yes" : "No") << std::endl;
 }
 
 int main()

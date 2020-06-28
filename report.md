@@ -142,5 +142,15 @@ class ByteMemory
 
     实际大小应为：`25 Bytes`，但由于我的机器为8字节对齐，最终大小成为了`32 Bytes`
 
+    ```c++
+    Size of a std::size_t is: 8
+    Size of a void * is: 8
+    Size of a bool is: 1
+    Size of a ByteMemory is: 32
+    ```
+
 ## `Memory Pool`
 
+### 概要
+
+我们通过
