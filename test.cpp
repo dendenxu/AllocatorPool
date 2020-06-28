@@ -14,9 +14,9 @@
 
 #define VERBOSE  // whether we're to silent everybody
 
-// #define TEST_POOL  // are we test pool memory resource?
+#define TEST_POOL  // are we test pool memory resource?
 
-// #define TEST_MONO  // are we test monotonic memory resource?
+#define TEST_MONO  // are we test monotonic memory resource?
 
 #define TEST_BIDI  // are we test bidirectional memory resource?
 
@@ -265,7 +265,7 @@ int main()
 
         auto size = ptrs_with_sz.size();
         for (auto i = 0; i < size; i++) {
-            pop(ptrs_with_sz, mono, gen, span);
+            pop(ptrs_with_sz, mono, span);
         }
 
         std::cout
