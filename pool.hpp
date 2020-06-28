@@ -2,6 +2,7 @@
 #include <memory>
 namespace mem
 {
+/** Pool Memory Resource Declaration */
 // ! This class can only be used when sizeof(uintptr_t) <= sizeof(T)
 // actually it's not even recommended to use memory pool if your block size is quite small, the pointers would take more space than the actual blocks!
 // one possible usage for the allocator is that upon encountering a small sized block allocation request, it calls this pool memory resource to construct larger space, and savor the large block by itself
@@ -29,9 +30,11 @@ class PoolMemory
 
     // return a nullptr if the memory pool is already full
     // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get(std::size_t size);
     void *get();
 
     // make sure the pblock is one of the pointers that you get from this memory pool
+    void free(void *pblock, std::size_t size);
     void free(void *pblock);
 
    private:
@@ -49,6 +52,7 @@ class PoolMemory
     bool m_is_manual;                // whether the m_pmemory is manually allocated by us
 };
 
+/** Monotonic Memory Resource Declaration */
 class MonoMemory
 {
    public:
@@ -83,6 +87,7 @@ class MonoMemory
     bool m_is_manual;          // whether the m_pmemory is manually allocated by us
 };
 
+/** Bidirectional Memory Resource Declaration */
 class BidiMemory
 {
    public:

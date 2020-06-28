@@ -1,6 +1,7 @@
 #include "pool.hpp"
 using namespace mem;
 
+/** Pool Memory Resource Implementation */
 PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks)
     : m_pool_sz_bytes(num_blocks * block_sz_bytes),
       m_block_sz_bytes(block_sz_bytes),
@@ -56,6 +57,13 @@ void PoolMemory::init_memory()
     }
 }
 
+/** Just a thin wrapper */
+void *PoolMemory::get(std::size_t size)
+{
+    assert(size == m_block_sz_bytes);
+    return get();
+}
+
 void *PoolMemory::get()
 {
     // if (m_pmemory == nullptr) {  // This should not happen
@@ -75,6 +83,13 @@ void *PoolMemory::get()
         throw std::bad_alloc();
         // return nullptr;  // if you get a nullptr from a memory pool, it's time to allocate a new one
     }
+}
+
+/** Just a thin wrapper */
+void PoolMemory::free(void *pblock, std::size_t size)
+{
+    assert(size == m_block_sz_bytes);
+    free(pblock);
 }
 
 void PoolMemory::free(void *pblock)
@@ -102,6 +117,7 @@ void PoolMemory::free(void *pblock)
     }
 }
 
+/** Monotonic Memory Resource Implementation */
 MonoMemory::MonoMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
 MonoMemory::MonoMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
 MonoMemory::~MonoMemory()
@@ -136,6 +152,7 @@ void MonoMemory::free(void *pblock, std::size_t size)
     }
 }
 
+/** Bidirectional Memory Resource Implementation */
 BidiMemory::BidiMemory(const std::size_t size) : m_total_size(size), m_head(0), m_tail(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
 BidiMemory::BidiMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_head(0), m_tail(0), m_total_size(size), m_is_manual(false) {}
 BidiMemory::~BidiMemory()
@@ -160,6 +177,8 @@ void *BidiMemory::get(std::size_t size)
 // make sure the pblock is one of the pointers that you get from this byte chunk
 void BidiMemory::free(void *pblock, std::size_t size)
 {
+    // ! this is a extremely weak condition!
+    assert(pblock >= m_pmemory && pblock < m_pmemory + m_head);
     if (m_head < size) {  // this should not happen if you're calling it right
         std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
     } else {
