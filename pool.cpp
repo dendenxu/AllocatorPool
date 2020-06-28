@@ -102,15 +102,15 @@ void PoolMemory::free(void *pblock)
     }
 }
 
-ByteMemory::ByteMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
-ByteMemory::ByteMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
-ByteMemory::~ByteMemory()
+MonoMemory::MonoMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
+MonoMemory::MonoMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
+MonoMemory::~MonoMemory()
 {
     if (m_is_manual) {
         delete[] m_pmemory;
     }
 }  // delete the pre-allocated byte chunk chunk
-void *ByteMemory::get(std::size_t size)
+void *MonoMemory::get(std::size_t size)
 {
     if (m_index + size > m_total_size) {
         std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
@@ -124,7 +124,7 @@ void *ByteMemory::get(std::size_t size)
 }
 
 // make sure the pblock is one of the pointers that you get from this byte chunk
-void ByteMemory::free(void *pblock, std::size_t size)
+void MonoMemory::free(void *pblock, std::size_t size)
 {
     if (m_index < size) {  // this should not happen if you're calling it right
         std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
@@ -132,6 +132,40 @@ void ByteMemory::free(void *pblock, std::size_t size)
         m_index -= size;
         if (m_index + m_pmemory != pblock) {  // this should not happen if you're calling it right
             std::cerr << "[ERROR] You can only give back what you've taken away, and in the right order" << std::endl;
+        }
+    }
+}
+
+BidiMemory::BidiMemory(const std::size_t size) : m_total_size(size), m_head(0), m_tail(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
+BidiMemory::BidiMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_head(0), m_tail(0), m_total_size(size), m_is_manual(false) {}
+BidiMemory::~BidiMemory()
+{
+    if (m_is_manual) {
+        delete[] m_pmemory;
+    }
+}  // delete the pre-allocated byte chunk chunk
+void *BidiMemory::get(std::size_t size)
+{
+    if (m_head + size > m_total_size) {
+        std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
+        throw std::bad_alloc();
+        // return nullptr;
+    } else {
+        void *ptr = m_pmemory + m_head;
+        m_head += size;
+        return ptr;
+    }
+}
+
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void BidiMemory::free(std::size_t size)
+{
+    if (m_head < size) {  // this should not happen if you're calling it right
+        std::cerr << "[ERROR] You can only give back what you've taken away." << std::endl;
+    } else {
+        m_tail += size;
+        if (m_tail == m_head) {
+            m_tail = m_head = 0;
         }
     }
 }
