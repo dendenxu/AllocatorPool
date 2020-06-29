@@ -12,7 +12,7 @@
 
 #include "pool.hpp"
 /* clang-format off */
-// #define VERBOSE  // whether we're to silent everybody
+#define VERBOSE  // whether we're to silent everybody
 #define TEST_POOL  // are we test pool memory resource?
 #define TEST_MONO  // are we test monotonic memory resource?
 /* clang-format on */
@@ -21,10 +21,11 @@ using hiclock = std::chrono::high_resolution_clock;
 using time_point = std::chrono::time_point<hiclock>;
 using duration = std::chrono::duration<double>;
 using std::chrono::duration_cast;
-using type = std::bitset<1024>;  // we can change this type to test for different size of allocation
-constexpr int num_blocks = 100000;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
-constexpr int bias = 5000;         // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
-constexpr int num_iters = 5;     // number of iteration to test, each with a newly allocated PoolMemory and random block count
+using type = std::bitset<1024>;       // we can change this type to test for different size of allocation
+constexpr int scale = 10;             // scale of our test, 2^scale
+constexpr int num_blocks = 2 << 10;   // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
+constexpr int bias = num_blocks / 2;  // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
+constexpr int num_iters = 5;          // number of iteration to test, each with a newly allocated PoolMemory and random block count
 
 template <class MemoT>
 void print_info(MemoT &memo)
@@ -229,6 +230,37 @@ int main()
             << span.count() / size
             << " seconds per operations"
             << std::endl;
+
+        /** Test for some random allocation and deallocation requests, mixing up the order */
+        for (auto i = 0; i < actual_size; i++) {
+            if (tf(gen)) {
+                if (mono.full()) {
+                    pop(ptrs_with_sz, mono, span);
+                } else {
+                    push(ptrs_with_sz, mono, gen, span);
+                }
+            } else {
+                if (mono.empty()) {
+                    push(ptrs_with_sz, mono, gen, span);
+                } else {
+                    pop(ptrs_with_sz, mono, span);
+                }
+            }
+        }
+
+        std::cout << "The pool's current size: " << mono.size() << std::endl;
+        std::cout << "The ptrs's current size: " << ptrs_with_sz.size() << std::endl;
+
+        /** Empty the whole memory pool if it's not currently empty */
+        if (!ptrs_with_sz.empty()) {
+            std::size_t size = ptrs_with_sz.size();  // we should memorize this since the size is changed every time we call pop or push
+            for (auto i = 0; i < size; i++) {
+#ifdef VERBOSE
+                std::cout << "Popping since not empty yet, index is: " << i << " size is: " << ptrs_with_sz.size() << std::endl;
+#endif  // VERBOSE
+                pop(ptrs_with_sz, mono, span);
+            }
+        }
 
         delete pmono;
         delete[] ptr;  // we might be deleting a nullptr
