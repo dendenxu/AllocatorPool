@@ -12,7 +12,7 @@
 
 #include "pool.hpp"
 
-#define VERBOSE  // whether we're to silent everybody
+// #define VERBOSE  // whether we're to silent everybody
 
 #define TEST_POOL  // are we test pool memory resource?
 
@@ -145,14 +145,16 @@ void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &
 
 int main()
 {
-    // constexpr bool silent = true;      // are we silencing output?
-    constexpr int num_blocks = 10;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
-    constexpr int bias = 5;         // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
-    constexpr int num_iters = 5;    // number of iteration to test, each with a newly allocated PoolMemory and random block count
-    int actual_size;                // reused in every iteration, range in [num_blocks-bias, num_blocks+bias]
-    std::random_device rd;          // a random device, depends on the current system, increase entropy of random gen, heavy: involving file IO
-    std::mt19937 gen(rd());         // a popular random number generator
-    std::vector<void *> ptrs;       // the vector of pointers to be cleared and reused in every iterations
+    constexpr int num_blocks = 100;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
+    constexpr int bias = 50;         // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
+    constexpr int num_iters = 5;     // number of iteration to test, each with a newly allocated PoolMemory and random block count
+    int actual_size;                 // reused in every iteration, range in [num_blocks-bias, num_blocks+bias]
+    std::random_device rd;           // depends on the current system, increase entropy of random gen, heavy: involving file IO
+    std::mt19937 gen(rd());          // a popular random number generator
+    std::vector<void *> ptrs;        // the vector of pointers to be cleared and reused in every iterations
+    std::vector<std::pair<void *, std::size_t>>
+        ptrs_with_sz;  // the vector of pointers along with their size
+
     std::uniform_int_distribution<std::size_t> dist(num_blocks - bias, num_blocks + bias);
     std::uniform_int_distribution<bool> tf(false, true);
     duration span = duration();
@@ -165,10 +167,22 @@ int main()
 #ifdef TEST_MONO
     for (auto iteration = 0; iteration < num_iters; iteration++) {
         actual_size = dist(gen);  // range: [num_blocks-bias, num_blocks+bias]
+        mem::MonoMemory *pmono = nullptr;
+        std::byte *ptr = nullptr;
+        if (tf(gen)) {
+            std::cout << "[INFO] We're doing the allocation manually" << std::endl;
+            begin = hiclock::now();
+            pmono = new mem::MonoMemory(sizeof(type) * actual_size);
+            end = hiclock::now();
+        } else {
+            std::cout << "[INFO] We're doing the allocation ahead of time" << std::endl;
+            ptr = new std::byte[actual_size];
+            begin = hiclock::now();
+            pmono = new mem::MonoMemory(sizeof(type) * actual_size, ptr);
+            end = hiclock::now();
+        }
 
-        begin = hiclock::now();
-        mem::MonoMemory mono(sizeof(type) * actual_size);
-        end = hiclock::now();
+        mem::MonoMemory &mono = *pmono;
 
         std::cout
             << "It takes "
@@ -184,8 +198,7 @@ int main()
         std::cout << "Size of the byte memory variable: " << sizeof(mono) << std::endl;
         std::cout << "Size of the byte memory: " << mono.capacity() << std::endl;
 
-        std::vector<std::pair<void *, std::size_t>> ptrs_with_sz;
-
+        ptrs_with_sz.clear();
         auto count = 0;
         span = duration();
         while (!mono.full()) {
@@ -216,6 +229,9 @@ int main()
             << span.count() / size
             << " seconds per operations"
             << std::endl;
+
+        delete pmono;
+        delete[] ptr;
     }
 #endif  // TEST_MONO
 
@@ -223,9 +239,22 @@ int main()
     for (auto iteration = 0; iteration < num_iters; iteration++) {
         actual_size = dist(gen);  // range: [num_blocks-bias, num_blocks+bias]
 
-        begin = hiclock::now();
-        mem::PoolMemory pool(sizeof(type), actual_size);
-        end = hiclock::now();
+        mem::PoolMemory *ppool = nullptr;
+        std::byte *ptr = nullptr;
+        if (tf(gen)) {
+            std::cout << "[INFO] We're doing the allocation manually" << std::endl;
+            begin = hiclock::now();
+            ppool = new mem::PoolMemory(sizeof(type), actual_size);
+            end = hiclock::now();
+        } else {
+            std::cout << "[INFO] We're doing the allocation ahead of time" << std::endl;
+            ptr = new std::byte[actual_size * sizeof(type)];
+            begin = hiclock::now();
+            ppool = new mem::PoolMemory(sizeof(type), actual_size, ptr);
+            end = hiclock::now();
+        }
+
+        mem::PoolMemory &pool = *ppool;
 
         std::cout
             << "It takes "
@@ -315,6 +344,9 @@ int main()
         }
 
         std::cout << "Is the memory pool eventually empty? " << (pool.empty() ? "Yes" : "No") << std::endl;
+
+        delete ppool;
+        delete[] ptr;
     }
 #endif  // TEST_POOL
 
