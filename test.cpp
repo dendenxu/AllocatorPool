@@ -161,22 +161,23 @@ int main()
     // using type = int;  // should produce assertion failure, on my machine sizeof(int) == 4
     // using type = double;  // should produce a densely used memory pool, on my machine sizeof(double) == 8 == sizeof(void *)
 
-    time_point begin;
-    time_point end;
+    time_point begin;  // used in chrono timing
+    time_point end;    // used in chrono timing
 
 #ifdef TEST_MONO
     for (auto iteration = 0; iteration < num_iters; iteration++) {
         actual_size = dist(gen);  // range: [num_blocks-bias, num_blocks+bias]
         mem::MonoMemory *pmono = nullptr;
         std::byte *ptr = nullptr;
-        if (tf(gen)) {
+
+        if (tf(gen)) { // the string would be already quite self-explaining
             std::cout << "[INFO] We're doing the allocation manually" << std::endl;
             begin = hiclock::now();
             pmono = new mem::MonoMemory(sizeof(type) * actual_size);
             end = hiclock::now();
         } else {
             std::cout << "[INFO] We're doing the allocation ahead of time" << std::endl;
-            ptr = new std::byte[actual_size];
+            ptr = new std::byte[actual_size]; // the deletion is at the end of the iteration
             begin = hiclock::now();
             pmono = new mem::MonoMemory(sizeof(type) * actual_size, ptr);
             end = hiclock::now();
@@ -231,7 +232,7 @@ int main()
             << std::endl;
 
         delete pmono;
-        delete[] ptr;
+        delete[] ptr;  // we might be deleting a nullptr
     }
 #endif  // TEST_MONO
 
@@ -293,8 +294,6 @@ int main()
             std::cerr << e.what() << '\n';
         }
 
-        // std::shuffle(ptrs.begin(), ptrs.end(), gen); // might not be needed anymore since our push/pop is random
-
         /** Returning all the memory exhausted before */
         span = duration();
         for (auto i = 0; i < actual_size; i++) {
@@ -307,8 +306,6 @@ int main()
             << span.count() / actual_size
             << " seconds per operations"
             << std::endl;
-
-        // std::cout << "[TEST] Random number is: " << tf(gen) << std::endl;
 
         /** Test for some random allocation and deallocation requests, mixing up the order */
         for (auto i = 0; i < actual_size; i++) {
@@ -325,7 +322,6 @@ int main()
                     pop_random(ptrs, pool, gen, span);
                 }
             }
-            // std::shuffle(ptrs.begin(), ptrs.end(), gen); // ! this might be some heavy work
         }
 
         std::cout << "The pool's current size: " << pool.size() << std::endl;
@@ -346,7 +342,7 @@ int main()
         std::cout << "Is the memory pool eventually empty? " << (pool.empty() ? "Yes" : "No") << std::endl;
 
         delete ppool;
-        delete[] ptr;
+        delete[] ptr;  // we might be deleting a nullptr
     }
 #endif  // TEST_POOL
 
