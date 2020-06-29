@@ -12,7 +12,7 @@
 
 #include "pool.hpp"
 /* clang-format off */
-#define VERBOSE  // whether we're to silent everybody
+// #define VERBOSE  // whether we're to silent everybody
 #define TEST_POOL  // are we test pool memory resource?
 #define TEST_MONO  // are we test monotonic memory resource?
 /* clang-format on */
@@ -21,12 +21,15 @@ using hiclock = std::chrono::high_resolution_clock;
 using time_point = std::chrono::time_point<hiclock>;
 using duration = std::chrono::duration<double>;
 using std::chrono::duration_cast;
-using type = std::bitset<1024>;       // we can change this type to test for different size of allocation
-constexpr int scale = 10;             // scale of our test, 2^scale
-constexpr int num_blocks = 2 << 10;   // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
-constexpr int bias = num_blocks / 2;  // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
-constexpr int num_iters = 5;          // number of iteration to test, each with a newly allocated PoolMemory and random block count
+constexpr int scale = 16;               // scale of our test, 2^scale
+constexpr int num_blocks = 2 << scale;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
+constexpr int bias = num_blocks / 2;    // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
+constexpr int num_iters = 5;            // number of iteration to test, each with a newly allocated PoolMemory and random block count
+using type = std::bitset<1024>;         // we can change this type to test for different size of allocation
+// using type = int;                     // should produce assertion failure for pool memory, on my machine sizeof(int) == 4
+// using type = double;                  // should produce a densely used memory pool, on my machine sizeof(double) == 8 == sizeof(void *)
 
+/** Print some information about the current memory resource, assuming free_count, capacity and full, empty API */
 template <class MemoT>
 void print_info(MemoT &memo)
 {
@@ -41,7 +44,7 @@ void print_info(MemoT &memo)
     std::cout << "Is the memory resource empty? " << (memo.empty() ? "Yes" : "No") << std::endl;
 }
 
-/** Get a memory pointer from the given memory resource and insert it to the back of the given pointer vector */
+/** Get a memory pointer from the given memory resource and insert it to the back (or a given position) of the given pointer vector */
 void push(std::vector<void *> &ptrs, mem::PoolMemory &pool, duration &span, std::size_t index = -1)
 {
     if (index == -1) index = ptrs.size();
@@ -56,7 +59,7 @@ void push(std::vector<void *> &ptrs, mem::PoolMemory &pool, duration &span, std:
 #endif  // VERBOSE
 }
 
-/** Select last pointer of a given pointer vector and give it back to the given memory resource */
+/** Select last (or a given position) pointer of a given pointer vector and give it back to the given memory resource */
 void pop(std::vector<void *> &ptrs, mem::PoolMemory &pool, duration &span, std::size_t index = -1)
 {
     if (index == -1) index = ptrs.size() - 1;
@@ -152,14 +155,16 @@ int main()
     std::random_device rd;     // depends on the current system, increase entropy of random gen, heavy: involving file IO
     std::mt19937 gen(rd());    // a popular random number generator
     std::vector<void *> ptrs;  // the vector of pointers to be cleared and reused in every iterations
-    std::vector<std::pair<void *, std::size_t>>
-        ptrs_with_sz;  // the vector of pointers along with their size
+    std::vector<               // the vector of pointers along with their size
+        std::pair<
+            void *,
+            std::size_t>>
+        ptrs_with_sz;
 
-    std::uniform_int_distribution<std::size_t> dist(num_blocks - bias, num_blocks + bias);
-    std::uniform_int_distribution<bool> tf(false, true);
-    duration span = duration();
-    // using type = int;  // should produce assertion failure, on my machine sizeof(int) == 4
-    // using type = double;  // should produce a densely used memory pool, on my machine sizeof(double) == 8 == sizeof(void *)
+    std::uniform_int_distribution<std::size_t>
+        dist(num_blocks - bias, num_blocks + bias);       // distribution to generate actual size
+    std::uniform_int_distribution<bool> tf(false, true);  // true false binary random generator
+    duration span = duration();                           // globally used time duration
 
     time_point begin;  // used in chrono timing
     time_point end;    // used in chrono timing
@@ -304,13 +309,11 @@ int main()
 
         ptrs.clear();  // clear pointer vector on every iteration
 
-        // begin = hiclock::now();
         /** Exhaust all the memory available in the memory pool */
         span = duration();
         for (auto i = 0; i < actual_size; i++) {
             push_random(ptrs, pool, gen, span);
         }
-        // end = hiclock::now();
         std::cout
             << "It takes "
             << span.count()

@@ -182,11 +182,338 @@ void free(void *pblock);
 ### 测试基本流程
 
 1. 根据随机生成器结果决定是否让被测试内存资源手动分配内存。
+
 2. 构建内存资源并记录构建速度，打印本资源相关信息。
+
 3. 连续调用内存资源的`get`接口以获得相应大小的内存。
+
     1. 对于`MonoMemory`，我们根据现有`free_count`获取一个小于等于此数量的随机大小的内存。并进入循环，直到整个内存资源被耗尽。我们将获取到的内存指针以及其大小按照顺序存入一个向量供日后使用。
     2. 对于`PoolMemory`，我们调用`get`的次数与内存资源的总大小相等，恰好将内存资源耗尽。虽然我们无法从`PoolMemory`中获取任意大小的内存，但我们可以打乱内存分配顺序。我们在获取内存指针后将其随机插入一个指针向量。
-4. 连续调用内存资源的`free`接口以清空刚刚获取的内存。
+
+4. 再次调用`get`并检查是否出发异常。
+
+5. 连续调用内存资源的`free`接口以清空刚刚获取的内存。
+
     1. 对于`MonoMemory`，我们按照堆栈式顺序清空先前压入的相应内存资源。虽然资源的大小时随机生成的。
     2. 对于`PoolMemory`，我们从现有的内存指针向量中随机选取一个指针，乱序调用`free`接口使得内存资源中的`free_list`被打乱，并检测这种方式下资源的效率与正确性。
-5. 我们累加调用内存资源接口的时间，并通过`chrono`的高精度时钟记录总时间，用以判断内存的读写效率。
+
+6. 我们累加调用内存资源接口的时间，并通过`chrono`的高精度时钟记录总时间，用以判断内存的读写效率。
+
+7. 最后我们进行随机分配效率测试，我们迭代`actual_size`次（这个数目是通过随机生成器得到的），每次迭代中调用一次01随机生成器，对应两种不同的结果分别进行分配和释放操作。
+
+    类似的，对于`MonoMemory`我们按照堆栈顺序分配和释放这些资源；对于`PoolMemory`我们使用随机顺序。
+
+    类似的，我们仍然记录并累加每次操作的时间之和，并以此为依据获得平均运行时间。
+
+### 测试代码具体实现
+
+```c++
+
+```
+
+### 测试结果
+
+```c++
+[INFO] We're doing the allocation manually
+It takes 5.896e-06 seconds to create and initialize the byte memory resource
+Our actual size is: 1550
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 198400
+Initial free space of this byte memory: 198400
+Size of the byte memory variable: 32
+Size of the byte memory: 198400
+Is the memory resource full? Yes
+It takes 4.77e-07 seconds to get this much times, which averages to 3.66923e-08 seconds per operations
+It takes 5.25e-07 seconds to free this much times, which averages to 4.03846e-08 seconds per operations
+The pool's current size: 197343
+The ptrs's current size: 6
+[INFO] We're doing the allocation ahead of time
+It takes 1.2e-07 seconds to create and initialize the byte memory resource
+Our actual size is: 1944
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 248832
+Initial free space of this byte memory: 248832
+Size of the byte memory variable: 32
+Size of the byte memory: 248832
+Is the memory resource full? Yes
+It takes 5.97e-07 seconds to get this much times, which averages to 3.51176e-08 seconds per operations
+It takes 6.63e-07 seconds to free this much times, which averages to 3.9e-08 seconds per operations
+The pool's current size: 230980
+The ptrs's current size: 2
+[INFO] We're doing the allocation ahead of time
+It takes 7.3e-08 seconds to create and initialize the byte memory resource
+Our actual size is: 1695
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 216960
+Initial free space of this byte memory: 216960
+Size of the byte memory variable: 32
+Size of the byte memory: 216960
+Is the memory resource full? Yes
+It takes 5.69e-07 seconds to get this much times, which averages to 3.55625e-08 seconds per operations
+It takes 6.14e-07 seconds to free this much times, which averages to 3.8375e-08 seconds per operations
+The pool's current size: 216958
+The ptrs's current size: 11
+[INFO] We're doing the allocation manually
+It takes 1.991e-06 seconds to create and initialize the byte memory resource
+Our actual size is: 3050
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 390400
+Initial free space of this byte memory: 390400
+Size of the byte memory variable: 32
+Size of the byte memory: 390400
+Is the memory resource full? Yes
+It takes 8.43e-07 seconds to get this much times, which averages to 3.5125e-08 seconds per operations
+It takes 9.38e-07 seconds to free this much times, which averages to 3.90833e-08 seconds per operations
+The pool's current size: 390056
+The ptrs's current size: 6
+[INFO] We're doing the allocation manually
+It takes 2.22e-07 seconds to create and initialize the byte memory resource
+Our actual size is: 1795
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 229760
+Initial free space of this byte memory: 229760
+Size of the byte memory variable: 32
+Size of the byte memory: 229760
+Is the memory resource full? Yes
+It takes 3.25e-07 seconds to get this much times, which averages to 3.61111e-08 seconds per operations
+It takes 3.47e-07 seconds to free this much times, which averages to 3.85556e-08 seconds per operations
+The pool's current size: 200820
+The ptrs's current size: 3
+[INFO] We're doing the allocation manually
+It takes 0.000121443 seconds to create and initialize the memory pool
+Our actual size is: 2953
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 2953
+Initial free space of this memory pool: 2953
+Size of the memory pool variable: 56
+Size of the memory pool: 377984
+It takes 0.000118293 seconds to get this much times, which averages to 4.00586e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.00011813 seconds to free this much times, which averages to 4.00034e-08 seconds per operations
+The pool's current size: 49
+The ptrs's current size: 49
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation ahead of time
+It takes 1.8677e-05 seconds to create and initialize the memory pool
+Our actual size is: 1667
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 1667
+Initial free space of this memory pool: 1667
+Size of the memory pool variable: 56
+Size of the memory pool: 213376
+It takes 6.386e-05 seconds to get this much times, which averages to 3.83083e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 6.7134e-05 seconds to free this much times, which averages to 4.02723e-08 seconds per operations
+The pool's current size: 23
+The ptrs's current size: 23
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation ahead of time
+It takes 0.000129775 seconds to create and initialize the memory pool
+Our actual size is: 1444
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 1444
+Initial free space of this memory pool: 1444
+Size of the memory pool variable: 56
+Size of the memory pool: 184832
+It takes 8.6652e-05 seconds to get this much times, which averages to 6.00083e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 9.5426e-05 seconds to free this much times, which averages to 6.60845e-08 seconds per operations
+The pool's current size: 12
+The ptrs's current size: 12
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation manually
+It takes 3.1879e-05 seconds to create and initialize the memory pool
+Our actual size is: 2391
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 2391
+Initial free space of this memory pool: 2391
+Size of the memory pool variable: 56
+Size of the memory pool: 306048
+It takes 0.000239563 seconds to get this much times, which averages to 1.00194e-07 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.000117256 seconds to free this much times, which averages to 4.90406e-08 seconds per operations
+The pool's current size: 19
+The ptrs's current size: 19
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation ahead of time
+It takes 1.413e-05 seconds to create and initialize the memory pool
+Our actual size is: 2191
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 2191
+Initial free space of this memory pool: 2191
+Size of the memory pool variable: 56
+Size of the memory pool: 280448
+It takes 8.2953e-05 seconds to get this much times, which averages to 3.78608e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 8.679e-05 seconds to free this much times, which averages to 3.9612e-08 seconds per operations
+The pool's current size: 57
+The ptrs's current size: 57
+Is the memory pool eventually empty? Yes
+Size of a type is: 128
+Size of a bitset<128> is: 16
+Size of a std::size_t is: 8
+Size of a void * is: 8
+Size of a bool is: 1
+Size of a PoolMemory is: 56
+Size of a MonoMemory is: 32
+Test is completed, bye.
+```
+
+大测试结果：
+
+```c++
+[INFO] We're doing the allocation manually
+It takes 5.912e-06 seconds to create and initialize the byte memory resource
+Our actual size is: 148127
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 18960256
+Initial free space of this byte memory: 18960256
+Size of the byte memory variable: 32
+Size of the byte memory: 18960256
+Is the memory resource full? Yes
+It takes 7.64e-07 seconds to get this much times, which averages to 3.47273e-08 seconds per operations
+It takes 8.2e-07 seconds to free this much times, which averages to 3.72727e-08 seconds per operations
+The pool's current size: 18859257
+The ptrs's current size: 3
+[INFO] We're doing the allocation manually
+It takes 9.642e-06 seconds to create and initialize the byte memory resource
+Our actual size is: 89108
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 11405824
+Initial free space of this byte memory: 11405824
+Size of the byte memory variable: 32
+Size of the byte memory: 11405824
+Is the memory resource full? Yes
+It takes 4.7e-07 seconds to get this much times, which averages to 3.35714e-08 seconds per operations
+It takes 5.41e-07 seconds to free this much times, which averages to 3.86429e-08 seconds per operations
+The pool's current size: 11380671
+The ptrs's current size: 4
+[INFO] We're doing the allocation ahead of time
+It takes 1.0632e-05 seconds to create and initialize the byte memory resource
+Our actual size is: 145303
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 18598784
+Initial free space of this byte memory: 18598784
+Size of the byte memory variable: 32
+Size of the byte memory: 18598784
+Is the memory resource full? Yes
+It takes 5.95e-07 seconds to get this much times, which averages to 3.5e-08 seconds per operations
+It takes 6.56e-07 seconds to free this much times, which averages to 3.85882e-08 seconds per operations
+The pool's current size: 18598647
+The ptrs's current size: 11
+[INFO] We're doing the allocation ahead of time
+It takes 9.128e-06 seconds to create and initialize the byte memory resource
+Our actual size is: 188890
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 24177920
+Initial free space of this byte memory: 24177920
+Size of the byte memory variable: 32
+Size of the byte memory: 24177920
+Is the memory resource full? Yes
+It takes 4.26e-07 seconds to get this much times, which averages to 3.55e-08 seconds per operations
+It takes 4.77e-07 seconds to free this much times, which averages to 3.975e-08 seconds per operations
+The pool's current size: 24177878
+The ptrs's current size: 10
+[INFO] We're doing the allocation manually
+It takes 6.35e-07 seconds to create and initialize the byte memory resource
+Our actual size is: 83817
+Initial size of this byte memory: 0
+Initial capacity of this byte memory: 10728576
+Initial free space of this byte memory: 10728576
+Size of the byte memory variable: 32
+Size of the byte memory: 10728576
+Is the memory resource full? Yes
+It takes 6.18e-07 seconds to get this much times, which averages to 3.63529e-08 seconds per operations
+It takes 6.67e-07 seconds to free this much times, which averages to 3.92353e-08 seconds per operations
+The pool's current size: 9098302
+The ptrs's current size: 3
+[INFO] We're doing the allocation manually
+It takes 0.00730747 seconds to create and initialize the memory pool
+Our actual size is: 182218
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 182218
+Initial free space of this memory pool: 182218
+Size of the memory pool variable: 56
+Size of the memory pool: 23323904
+It takes 0.0163786 seconds to get this much times, which averages to 8.98847e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.010426 seconds to free this much times, which averages to 5.72174e-08 seconds per operations
+The pool's current size: 262
+The ptrs's current size: 262
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation ahead of time
+It takes 0.00335973 seconds to create and initialize the memory pool
+Our actual size is: 84421
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 84421
+Initial free space of this memory pool: 84421
+Size of the memory pool variable: 56
+Size of the memory pool: 10805888
+It takes 0.00596156 seconds to get this much times, which averages to 7.0617e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.0048064 seconds to free this much times, which averages to 5.69337e-08 seconds per operations
+The pool's current size: 5
+The ptrs's current size: 5
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation ahead of time
+It takes 0.00368722 seconds to create and initialize the memory pool
+Our actual size is: 143090
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 143090
+Initial free space of this memory pool: 143090
+Size of the memory pool variable: 56
+Size of the memory pool: 18315520
+It takes 0.0124636 seconds to get this much times, which averages to 8.71029e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.00801772 seconds to free this much times, which averages to 5.60327e-08 seconds per operations
+The pool's current size: 20
+The ptrs's current size: 20
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation manually
+It takes 0.00783581 seconds to create and initialize the memory pool
+Our actual size is: 193340
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 193340
+Initial free space of this memory pool: 193340
+Size of the memory pool variable: 56
+Size of the memory pool: 24747520
+It takes 0.0173287 seconds to get this much times, which averages to 8.96279e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.0115603 seconds to free this much times, which averages to 5.97926e-08 seconds per operations
+The pool's current size: 106
+The ptrs's current size: 106
+Is the memory pool eventually empty? Yes
+[INFO] We're doing the allocation manually
+It takes 0.00285732 seconds to create and initialize the memory pool
+Our actual size is: 153750
+Initial size of this memory pool: 0
+Initial capacity of this memory pool: 153750
+Initial free space of this memory pool: 153750
+Size of the memory pool variable: 56
+Size of the memory pool: 19680000
+It takes 0.0130964 seconds to get this much times, which averages to 8.51799e-08 seconds per operations
+ERROR get: out of memory blocks
+std::bad_alloc
+It takes 0.00857946 seconds to free this much times, which averages to 5.58014e-08 seconds per operations
+The pool's current size: 16
+The ptrs's current size: 16
+Is the memory pool eventually empty? Yes
+Size of a type is: 128
+Size of a bitset<128> is: 16
+Size of a std::size_t is: 8
+Size of a void * is: 8
+Size of a bool is: 1
+Size of a PoolMemory is: 56
+Size of a MonoMemory is: 32
+Test is completed, bye.
+```
+
