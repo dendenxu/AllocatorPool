@@ -6,7 +6,7 @@
 #include <chrono>
 #include <ratio>
 
-const int TestSize = 10000;
+const int TestSize = 5000;
 const int PickSize = 1000;
 
 template <class T>
@@ -68,11 +68,13 @@ int main() {
         << std::endl;
 
 
+    begin = hiclock::now();
     for (int i = 0; i < PickSize; ++i) {
         int n_size = dis(gen);
         listdous.back().resize(n_size);
         listdous.pop_back();
     }
+    end = hiclock::now();
 
     std::cout
         << "It takes "

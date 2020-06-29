@@ -34,8 +34,8 @@ namespace vector {
         inline allocator(const allocator&) noexcept {};
         template <typename U>
         inline allocator(const allocator<U>&) noexcept {};
-        template <typename U, typename Tr>
-        inline allocator(const allocator<U, Tr>&) noexcept {};
+        template <typename U, typename Trr>
+        inline allocator(const allocator<U, Trr>&) noexcept {};
 
         // destructor
         inline ~allocator() {};
@@ -131,8 +131,8 @@ namespace list {
         inline allocator(const allocator&) noexcept {};
         template <typename U>
         inline allocator(const allocator<U>&) noexcept {};
-        template <typename U, typename Tr>
-        inline allocator(const allocator<U, Tr>&) noexcept {};
+        template <typename U, typename Trr>
+        inline allocator(const allocator<U, Trr>&) noexcept {};
 
         // destructor
         inline ~allocator() {};
