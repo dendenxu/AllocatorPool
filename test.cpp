@@ -11,18 +11,20 @@
 #include <vector>
 
 #include "pool.hpp"
-
+/* clang-format off */
 // #define VERBOSE  // whether we're to silent everybody
-
 #define TEST_POOL  // are we test pool memory resource?
-
 #define TEST_MONO  // are we test monotonic memory resource?
+/* clang-format on */
 
 using hiclock = std::chrono::high_resolution_clock;
 using time_point = std::chrono::time_point<hiclock>;
 using duration = std::chrono::duration<double>;
 using std::chrono::duration_cast;
 using type = std::bitset<1024>;  // we can change this type to test for different size of allocation
+constexpr int num_blocks = 100000;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
+constexpr int bias = 5000;         // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
+constexpr int num_iters = 5;     // number of iteration to test, each with a newly allocated PoolMemory and random block count
 
 template <class MemoT>
 void print_info(MemoT &memo)
@@ -145,13 +147,10 @@ void pop_random(std::vector<void *> &ptrs, mem::PoolMemory &pool, std::mt19937 &
 
 int main()
 {
-    constexpr int num_blocks = 100;  // base of number of blocks, actual possible range: [num_blocks-bias, num_blocks+bias]
-    constexpr int bias = 50;         // the bias to be added to base number, range: [num_blocks-bias, num_blocks+bias]
-    constexpr int num_iters = 5;     // number of iteration to test, each with a newly allocated PoolMemory and random block count
-    int actual_size;                 // reused in every iteration, range in [num_blocks-bias, num_blocks+bias]
-    std::random_device rd;           // depends on the current system, increase entropy of random gen, heavy: involving file IO
-    std::mt19937 gen(rd());          // a popular random number generator
-    std::vector<void *> ptrs;        // the vector of pointers to be cleared and reused in every iterations
+    int actual_size;           // reused in every iteration, range in [num_blocks-bias, num_blocks+bias]
+    std::random_device rd;     // depends on the current system, increase entropy of random gen, heavy: involving file IO
+    std::mt19937 gen(rd());    // a popular random number generator
+    std::vector<void *> ptrs;  // the vector of pointers to be cleared and reused in every iterations
     std::vector<std::pair<void *, std::size_t>>
         ptrs_with_sz;  // the vector of pointers along with their size
 
@@ -170,14 +169,14 @@ int main()
         mem::MonoMemory *pmono = nullptr;
         std::byte *ptr = nullptr;
 
-        if (tf(gen)) { // the string would be already quite self-explaining
+        if (tf(gen)) {  // the string would be already quite self-explaining
             std::cout << "[INFO] We're doing the allocation manually" << std::endl;
             begin = hiclock::now();
             pmono = new mem::MonoMemory(sizeof(type) * actual_size);
             end = hiclock::now();
         } else {
             std::cout << "[INFO] We're doing the allocation ahead of time" << std::endl;
-            ptr = new std::byte[actual_size]; // the deletion is at the end of the iteration
+            ptr = new std::byte[actual_size];  // the deletion is at the end of the iteration
             begin = hiclock::now();
             pmono = new mem::MonoMemory(sizeof(type) * actual_size, ptr);
             end = hiclock::now();
