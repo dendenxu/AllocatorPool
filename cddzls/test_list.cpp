@@ -10,7 +10,7 @@ const int TestSize = 10000;
 const int PickSize = 1000;
 
 template <class T>
-using MyAllocator = list::allocator<T>;  // replace the std::allocator with your allocator
+using MyAllocator = std::allocator<T>;  // replace the std::allocator with your allocator
 using Point2D = std::pair<int, int>;
 using type_name = double;
 using T_Vec = std::list<type_name, MyAllocator<type_name>>;
@@ -39,7 +39,7 @@ int main() {
     std::cout
         << "It takes "
         << duration_cast<duration>(end - begin).count()
-        << " seconds to create this vector"
+        << " seconds to create this list"
         << std::endl;
 
     
