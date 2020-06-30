@@ -6,12 +6,11 @@
 #include <chrono>
 #include <ratio>
 
-const int TestSize = 20000;
-const int PickSize = 1000;
+const int TestSize = 20000;     // total size for test list.
+const int PickSize = 1000;      // the number to be test from back of list.
 
 template <class T>
-// using MyAllocator = std::allocator<T>;  // replace the std::allocator with your allocator
-using MyAllocator = list::allocator<T>;  // replace the std::allocator with your allocator
+using MyAllocator = list::allocator<T>;  // replace the std::allocator with my allocator
 using Point2D = std::pair<int, int>;
 using type_name = char;
 using T_Vec = std::list<type_name, MyAllocator<type_name>>;
@@ -43,7 +42,7 @@ int main() {
         << " seconds to create this list"
         << std::endl;
 
-    
+    // push and pop to change lists' size.
     begin = hiclock::now();
     for (int i = 0; i < TestSize; i++) {
         std::list<type_name, MyAllocator<type_name>> lt;
@@ -68,11 +67,15 @@ int main() {
         << " lists"
         << std::endl;
 
-
+    // list resize and clear for the last elements of picksize.
     begin = hiclock::now();
     for (int i = 0; i < PickSize; ++i) {
         int n_size = dis(gen);
         listdous.back().resize(n_size);
+        listdous.pop_back();
+    }
+    for (int i = 0; i < PickSize; ++i) {
+        listdous.back().clear();
         listdous.pop_back();
     }
     end = hiclock::now();
@@ -85,6 +88,7 @@ int main() {
         << " picked lists"
         << std::endl;
 
+    // test if we can make correct assignment.
     {
         double val = 2.333;
         listdous.back().back() = val;
@@ -94,6 +98,7 @@ int main() {
             std::cout << "incorrect assignment in vecdous" << std::endl;
     }
     a_end = hiclock::now();
+
     std::cout
         << "It takes "
         << duration_cast<duration>(a_end - a_begin).count()

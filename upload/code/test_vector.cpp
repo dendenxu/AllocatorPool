@@ -6,11 +6,11 @@
 #include <chrono>
 #include <ratio>
 
-const int TestSize = 20000;
-const int PickSize = 2000;
+const int TestSize = 20000;     // total size for test vector.
+const int PickSize = 2000;      // the number to be randomly chosen from testsize.
 
 template <class T>
-using MyAllocator = vector::allocator<T>;  // replace the std::allocator with your allocator
+using MyAllocator = vector::allocator<T>;  // replace the std::allocator with my allocator.
 using Point2D = std::pair<int, int>;
 using type_name = Point2D;
 using T_Vec = std::vector<type_name, MyAllocator<type_name>>;
@@ -42,6 +42,7 @@ int main() {
         << " seconds to create this vector" 
         <<std::endl;
 
+    // allocate to testsize vectors.`
     begin = hiclock::now();
     for (int i = 0; i < TestSize; i++) {
         vecdous[i].resize(dis(gen));
@@ -57,12 +58,18 @@ int main() {
         << " vectors"
         << std::endl;
 
-    // vector resize randomly
+    // vector resize randomly.
     begin = hiclock::now();
     for (int i = 0; i < PickSize; i++) {
         int idx = dis(gen) - 1;
         int size = dis(gen);
         vecdous[idx].resize(size);
+    }
+    // vector shrink randomly
+    for (int i = 0; i < PickSize / 2; i++) {
+        int idx = dis(gen) - 1;
+        int size = dis(gen);
+        vecdous[idx].shrink_to_fit();
     }
     end = hiclock::now();
 
@@ -74,10 +81,7 @@ int main() {
         << " picked vectors"
         << std::endl;
 
-    /*for (int i = 0; i < vecdous.size(); ++i) {
-        std::cout << vecdous[i].size() << std::endl;
-    }*/
-    
+    // test if we can make correct assignment.
     {
         type_name val(11, 15);
         int idx1 = dis(gen) - 1;
