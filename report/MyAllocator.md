@@ -1,3 +1,27 @@
+# 内存池与分配器
+
+## 基本信息
+
+| 姓名     | 徐震                                                       | 宗威旭                                                     |
+| -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| 学号     | 3180105504                                                 | 318010xxxx                                                 |
+| 年级     | 2018级                                                     | 2018级                                                     |
+| 专业     | 计算机科学与技术                                           | 计算机科学与技术                                           |
+| 电话     | 18888916826                                                | 1888891xxxx                                                |
+| 邮箱     | [3180105504@zju.edu.cn](mailto:3180105504@zju.edu.cn)      | [318010xxxx@zju.edu.cn](mailto:318010xxxx@zju.edu.cn)      |
+| GitHub   | [dendenxu](https://github.com/dendenxu)                    | github.com/xxx                                             |
+| 作业仓库 | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) |
+| 指导教师 | 许威威                                                     | 许威威                                                     |
+| 分工情况 | 内存资源管理（`Memory Resource`）                          | 内存管理接口（`Allocator`）                                |
+
+## 实验环境
+
+| 机器环境 | Dell Inspiron 7590                         |
+| -------- | ------------------------------------------ |
+| CPU      | 2.6 GHz 6-Core/12-Logic Intel Core i7-9750 |
+| Memory   | 16 GB 2666 MHz DDR4                        |
+| Disk     | 500 GB Solid State PCI-Express Drive, NVMe |
+
 # `Memory Resource`：内存资源管理
 
 ## `Monotonic Memory`：堆栈式内存资源
@@ -48,8 +72,214 @@ void free(std::size_t size);
 
 具体实现：
 
-```c++
+接口
 
+```c++
+/** Pool Memory Resource Declaration */
+// ! This class can only be used when sizeof(void *) <= sizeof(T)
+// actually it's not even recommended to use memory pool if your block size is quite small, the pointers would take more space than the actual blocks!
+// one possible usage for the allocator is that upon encountering a small sized block allocation request, it calls this pool memory resource to construct larger space, and savor the large block by itself
+class PoolMemory
+{
+   public:
+    PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
+    PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
+
+    PoolMemory(const PoolMemory &alloc) = delete;           // delete copy constructor
+    PoolMemory &operator=(const PoolMemory &rhs) = delete;  // delete copy-assignment operator
+    PoolMemory(PoolMemory &&alloc) = delete;                // delete move constructor
+    PoolMemory &operator=(PoolMemory &&rhs) = delete;       // delete move-assignment operator
+
+    ~PoolMemory();
+
+    std::size_t block_size() { return m_block_sz_bytes; }                  // return block size in byte
+    std::size_t pool_size() { return m_pool_sz_bytes; }                    // return memory pool size in byte
+    std::size_t free_count() { return m_free_num_blocks; }                 // return number of free blocks inside the memory pool
+    std::size_t size() { return m_total_num_blocks - m_free_num_blocks; }  // return the number of used space in the memory pool
+    std::size_t capacity() { return m_total_num_blocks; }                  // return total number of blocks that this pool can hold
+    bool empty() { return m_free_num_blocks == m_total_num_blocks; }       // return whether the memory pool is empty
+    bool full() { return m_free_num_blocks == 0; }                         // return whether the memory pool is full
+    bool has_upper() { return ~m_is_manual; }                              // return whether m_pmemory's raw mem comes from an upper stream
+
+    // return a nullptr if the memory pool is already full
+    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get(std::size_t size);
+    void *get();
+
+    // make sure the pblock is one of the pointers that you get from this memory pool
+    void free(void *pblock, std::size_t size);
+    void free(void *pblock);
+
+   private:
+    void init_memory();  // this function will fill the memory with pointers to the next trunk for initialization
+
+    /** Current size of a memory pool variable should be 48 bytes
+     *  considering 8 byte for one pointer and size_t on my machine
+     */
+    std::byte *m_pmemory;            // pointer to the first address of the pool, used to relase all the memory
+    void **m_phead;                  // pointer to pointer, used to point to the head of the free list
+    std::size_t m_pool_sz_bytes;     //the size in bytes of the pool
+    std::size_t m_block_sz_bytes;    // size in bytes of each block
+    std::size_t m_free_num_blocks;   // number of blocks
+    std::size_t m_total_num_blocks;  // total number of blocks
+    bool m_is_manual;                // whether the m_pmemory is manually allocated by us
+};
+
+/** Monotonic Memory Resource Declaration */
+class MonoMemory
+{
+   public:
+    MonoMemory(const std::size_t size);
+    MonoMemory(const std::size_t size, std::byte *pointer);
+
+    MonoMemory(const MonoMemory &alloc) = delete;           // delete copy constructor
+    MonoMemory &operator=(const MonoMemory &rhs) = delete;  // delete copy-assignment operator
+    MonoMemory(MonoMemory &&alloc) = delete;                // delete move constructor
+    MonoMemory &operator=(MonoMemory &&rhs) = delete;       // delete move-assignment operator
+
+    ~MonoMemory();
+
+    std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
+    std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
+    std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
+    bool empty() { return m_index == 0; }                        // return whether the byte chunk is empty
+    bool full() { return m_index == m_total_size; }              // return whether the byte chunk is full
+    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
+
+    // return a nullptr if the byte chunk is already full
+    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get(std::size_t size);
+
+    // make sure the pblock is one of the pointers that you get from this byte chunk
+    void free(void *pblock, std::size_t size);
+    void free(std::size_t size);
+
+   private:
+    std::byte *m_pmemory;      // pointer to the byte array
+    std::size_t m_index;       // current index of the byte array
+    std::size_t m_total_size;  // total number of blocks
+    bool m_is_manual;          // whether the m_pmemory is manually allocated by us
+};
+```
+
+实现
+
+```c++
+/** Pool Memory Resource Implementation */
+PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks)
+    : m_pool_sz_bytes(num_blocks * block_sz_bytes),
+      m_block_sz_bytes(block_sz_bytes),
+      m_free_num_blocks(num_blocks),
+      m_total_num_blocks(num_blocks),
+      m_is_manual(true)
+{
+    m_pmemory = new std::byte[m_pool_sz_bytes];  // using byte as memory pool base type
+    init_memory();
+}
+
+PoolMemory::PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory)
+    : m_pool_sz_bytes(num_blocks * block_sz_bytes),
+      m_block_sz_bytes(block_sz_bytes),
+      m_free_num_blocks(num_blocks),
+      m_total_num_blocks(num_blocks),
+      m_is_manual(false),
+      m_pmemory(pmemory)  // this memory may have come from a different memory resource
+{
+    init_memory();
+}
+PoolMemory::~PoolMemory()
+{
+    if (m_is_manual) {
+        delete[] m_pmemory;
+    }
+}  // delete the pre-allocated memory pool chunk
+
+void PoolMemory::init_memory()
+{
+    /** We would want the size of the of the block to be bigger than a pointer */
+    assert(sizeof(void *) <= m_block_sz_bytes);
+    m_phead = reinterpret_cast<void **>(m_pmemory);  // treat list pointer as a pointer to pointer
+
+    /** 
+     * We're using uintptr_t to perform arithmetic operations with confidence
+     * We're not using void * since, well, it's forbidden to perform arithmetic operations on a void *
+     */
+    std::uintptr_t start_addr = reinterpret_cast<std::uintptr_t>(m_pmemory);  // where the whole chunk memory begins
+    std::uintptr_t end_addr = start_addr + m_pool_sz_bytes;                   // where the chunk memory ends
+
+    /** We use the same space as the actual block to be stored here to store the free list pointers */
+    // construct the linked list from raw memory
+    for (auto i = 0; i < m_total_num_blocks; i++) {
+        std::uintptr_t curr_addr = start_addr + i * m_block_sz_bytes;  // current block's address
+        std::uintptr_t next_addr = curr_addr + m_block_sz_bytes;       // next block's address
+        void **curr_mem = reinterpret_cast<void **>(curr_addr);        // a pointer, same value as curr_addr to support modification
+        if (next_addr >= end_addr) {
+            *curr_mem = nullptr;
+        } else {
+            *curr_mem = reinterpret_cast<void *>(next_addr);
+        }
+    }
+}
+
+/** Just a thin wrapper */
+void *PoolMemory::get(std::size_t size)
+{
+    assert(size == m_block_sz_bytes);
+    return get();
+}
+
+void *PoolMemory::get()
+{
+    // if (m_pmemory == nullptr) {  // This should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return nullptr;
+    // }
+
+    if (m_phead != nullptr) {
+        m_free_num_blocks--;  // decrement the number of free blocks
+
+        void *pblock = static_cast<void *>(m_phead);  // get current free list value
+        m_phead = static_cast<void **>(*m_phead);     // update free list head
+
+        return pblock;
+    } else {  // out of memory blocks (for an block with size m_block_sz_bytes)
+        std::cerr << "ERROR " << __FUNCTION__ << ": out of memory blocks" << std::endl;
+        throw std::bad_alloc();
+        // return nullptr;  // if you get a nullptr from a memory pool, it's time to allocate a new one
+    }
+}
+
+/** Just a thin wrapper */
+void PoolMemory::free(void *pblock, std::size_t size)
+{
+    assert(size == m_block_sz_bytes);
+    free(pblock);
+}
+
+void PoolMemory::free(void *pblock)
+{
+    if (pblock == nullptr) {
+        // do nothing if we're freeing a nullptr
+        // although this situation is declared undefined in C++ Standard
+        return;
+    }
+
+    // if (m_pmemory == nullptr) {  // this should not happen
+    //     std::cerr << "ERROR " << __FUNCTION__ << ": No memory was allocated to this pool" << std::endl;
+    //     return;
+    // }
+
+    m_free_num_blocks++;  // increment the number of blocks
+
+    if (m_phead == nullptr) {  // the free list is full (we can also check this by validating size)
+        m_phead = static_cast<void **>(pblock);
+        *m_phead = nullptr;
+    } else {
+        void *ppreturned_block = static_cast<void *>(m_phead);  // temporaryly store the current head as nex block
+        m_phead = static_cast<void **>(pblock);
+        *m_phead = ppreturned_block;
+    }
+}
 ```
 
 ### 特性
@@ -153,11 +383,86 @@ void free(void *pblock);
 
 - 其他控制接口类似于我们在`MonoMemory`中使用的。
 
-具体实现
+接口
 
 ```c++
+/** Monotonic Memory Resource Declaration */
+class MonoMemory
+{
+   public:
+    MonoMemory(const std::size_t size);
+    MonoMemory(const std::size_t size, std::byte *pointer);
 
+    MonoMemory(const MonoMemory &alloc) = delete;           // delete copy constructor
+    MonoMemory &operator=(const MonoMemory &rhs) = delete;  // delete copy-assignment operator
+    MonoMemory(MonoMemory &&alloc) = delete;                // delete move constructor
+    MonoMemory &operator=(MonoMemory &&rhs) = delete;       // delete move-assignment operator
+
+    ~MonoMemory();
+
+    std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
+    std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
+    std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
+    bool empty() { return m_index == 0; }                        // return whether the byte chunk is empty
+    bool full() { return m_index == m_total_size; }              // return whether the byte chunk is full
+    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
+
+    // return a nullptr if the byte chunk is already full
+    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get(std::size_t size);
+
+    // make sure the pblock is one of the pointers that you get from this byte chunk
+    void free(void *pblock, std::size_t size);
+    void free(std::size_t size);
+
+   private:
+    std::byte *m_pmemory;      // pointer to the byte array
+    std::size_t m_index;       // current index of the byte array
+    std::size_t m_total_size;  // total number of blocks
+    bool m_is_manual;          // whether the m_pmemory is manually allocated by us
+};
 ```
+
+实现
+
+```c++
+/** Monotonic Memory Resource Implementation */
+MonoMemory::MonoMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
+MonoMemory::MonoMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
+MonoMemory::~MonoMemory()
+{
+    if (m_is_manual) {
+        delete[] m_pmemory;
+    }
+}  // delete the pre-allocated byte chunk chunk
+void *MonoMemory::get(std::size_t size)
+{
+    if (m_index + size > m_total_size) {
+        std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
+        throw std::bad_alloc();
+        // return nullptr;
+    } else {
+        void *ptr = m_pmemory + m_index;
+        m_index += size;
+        return ptr;
+    }
+}
+
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void MonoMemory::free(void *pblock, std::size_t size)
+{
+    free(size);
+    assert(pblock == m_pmemory + m_index);
+}
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void MonoMemory::free(std::size_t size)
+{
+    assert(m_index >= size);
+    m_index -= size;
+}
+```
+
+
 
 ### 特性
 
