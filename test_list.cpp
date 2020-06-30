@@ -6,11 +6,12 @@
 #include <chrono>
 #include <ratio>
 
-const int TestSize = 5000;
+const int TestSize = 10000;
 const int PickSize = 1000;
 
 template <class T>
-using MyAllocator = std::allocator<T>;  // replace the std::allocator with your allocator
+// using MyAllocator = std::allocator<T>;  // replace the std::allocator with your allocator
+using MyAllocator = list::allocator<T>;  // replace the std::allocator with your allocator
 using Point2D = std::pair<int, int>;
 using type_name = double;
 using T_Vec = std::list<type_name, MyAllocator<type_name>>;

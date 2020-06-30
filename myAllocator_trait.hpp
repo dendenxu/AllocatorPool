@@ -1,10 +1,12 @@
 #pragma once
 
-namespace trait {
-template<typename T>
-class Allocator_Traits {
-public:
-    template<typename U>
+namespace trait
+{
+template <typename T>
+class Allocator_Traits
+{
+   public:
+    template <typename U>
     struct rebind {
         typedef Allocator_Traits<U> other;
     };
@@ -12,7 +14,9 @@ public:
     explicit Allocator_Traits() {}
     explicit Allocator_Traits(Allocator_Traits const&) {}
     template <typename U>
-    explicit Allocator_Traits(Allocator_Traits<U> const&) {}
+    explicit Allocator_Traits(Allocator_Traits<U> const&)
+    {
+    }
 
     ~Allocator_Traits() {}
 
@@ -21,15 +25,17 @@ public:
     inline T const* address(T const& r) { return &r; }
 
     // construct(deprecated in C++17)
-    template< typename U, typename... Args >
-    void construct(U* p, Args&&... args) {
-        new(p) U(std::forward<Args>(args)...);
+    template <typename U, typename... Args>
+    void construct(U* p, Args&&... args)
+    {
+        new (p) U(std::forward<Args>(args)...);
     }
-    
+
     // destruct
-    template< typename U >
-    void destroy(U* p) {
+    template <typename U>
+    void destroy(U* p)
+    {
         p->~U();
     }
 };
-}
+}  // namespace trait

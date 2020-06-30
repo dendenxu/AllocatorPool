@@ -23,7 +23,7 @@ namespace vector {
         using propagate_on_container_move_assignment = std::true_type;
         using is_always_equal = std::true_type;
 
-        const size_type chunk_num = 1.5;
+        const size_type chunk_num = 2;
         
         template <typename U> struct rebind {
             typedef allocator<U> other;
@@ -94,14 +94,14 @@ namespace vector {
         mem::MonoMemory* _current_pool = nullptr;
     };
 
-    template< typename T1, typename Tr1, typename T2, typename Tr2 >
-    inline bool operator==(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return true; }
-    template< typename T, typename Tr>
-    inline bool operator==(const allocator<T, Tr>&, const allocator<T, Tr>&) { return true; }
-    template< typename T1, typename Tr1, typename T2, typename Tr2 >
-    inline bool operator!=(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return false; }
-    template< typename T, typename Tr>
-    inline bool operator!=(const allocator<T, Tr>&, const allocator<T, Tr>&) { return false; }
+    // template< typename T1, typename Tr1, typename T2, typename Tr2 >
+    // inline bool operator==(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return true; }
+    // template< typename T, typename Tr>
+    // inline bool operator==(const allocator<T, Tr>&, const allocator<T, Tr>&) { return true; }
+    // template< typename T1, typename Tr1, typename T2, typename Tr2 >
+    // inline bool operator!=(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return false; }
+    // template< typename T, typename Tr>
+    // inline bool operator!=(const allocator<T, Tr>&, const allocator<T, Tr>&) { return false; }
 } // namespace vector
 
 
@@ -195,12 +195,12 @@ namespace list {
         std::vector<mem::PoolMemory*> _mpools; // memory resource for management
     };
 
-    template< typename T1, typename Tr1, typename T2, typename Tr2 >
-    inline bool operator==(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return true; }
-    template< typename T, typename Tr>
-    inline bool operator==(const allocator<T, Tr>&, const allocator<T, Tr>&) { return true; }
-    template< typename T1, typename Tr1, typename T2, typename Tr2 >
-    inline bool operator!=(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return false; }
-    template< typename T, typename Tr>
-    inline bool operator!=(const allocator<T, Tr>&, const allocator<T, Tr>&) { return false; }
+    // template< typename T1, typename Tr1, typename T2, typename Tr2 >
+    // inline bool operator==(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return true; }
+    // template< typename T, typename Tr>
+    // inline bool operator==(const allocator<T, Tr>&, const allocator<T, Tr>&) { return true; }
+    // template< typename T1, typename Tr1, typename T2, typename Tr2 >
+    // inline bool operator!=(const allocator<T1, Tr1>&, const allocator<T2, Tr2>&) { return false; }
+    // template< typename T, typename Tr>
+    // inline bool operator!=(const allocator<T, Tr>&, const allocator<T, Tr>&) { return false; }
 } // namespace list
