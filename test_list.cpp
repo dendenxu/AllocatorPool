@@ -13,7 +13,7 @@ template <class T>
 // using MyAllocator = std::allocator<T>;  // replace the std::allocator with your allocator
 using MyAllocator = list::allocator<T>;  // replace the std::allocator with your allocator
 using Point2D = std::pair<int, int>;
-using type_name = double;
+using type_name = char;
 using T_Vec = std::list<type_name, MyAllocator<type_name>>;
 
 using hiclock = std::chrono::high_resolution_clock;

@@ -153,6 +153,7 @@ class allocator
     // allocate
     pointer allocate(size_type n)
     {
+        if (sizeof(pointer) > sizeof(T)) return reinterpret_cast<pointer>(::operator new(n * sizeof(T)));
         if (_mpools.empty() == true) {
             // first allocator memory for user
             mem::PoolMemory* pool = new mem::PoolMemory(sizeof(T), chunk_size);
@@ -178,7 +179,8 @@ class allocator
     void deallocate(pointer p, size_type n)
     {
         // set p free when it's deallocate.
-        assert(p != nullptr);
+        // assert(p != nullptr);
+        if (sizeof(pointer) > sizeof(T)) ::operator delete(p);
         if (_mpools.empty() == false) {
             mem::PoolMemory* pool = _mpools.back();
             void* fblock = static_cast<void*>(p);

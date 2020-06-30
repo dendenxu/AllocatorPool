@@ -3,7 +3,7 @@
 namespace mem
 {
 /** Pool Memory Resource Declaration */
-// ! This class can only be used when sizeof(uintptr_t) <= sizeof(T)
+// ! This class can only be used when sizeof(void *) <= sizeof(T)
 // actually it's not even recommended to use memory pool if your block size is quite small, the pointers would take more space than the actual blocks!
 // one possible usage for the allocator is that upon encountering a small sized block allocation request, it calls this pool memory resource to construct larger space, and savor the large block by itself
 class PoolMemory
