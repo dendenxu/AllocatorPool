@@ -1439,6 +1439,10 @@ void deallocate(pointer p, size_type n)
 
 对于这一点的优化不明显，跟vector的实现方法有关。由于vector调用allocate的空间大概率为增大的连续空间，相比list很难利用前面离散的碎片空间。因此也只能释放掉而相对节省内存资源。我们也需要认识到，内存管理模式对于不同容器的提升效果并不一致，需要结合容器自身的空间特征进行分配与分析。如果要实现对于vector的进一步优化，我们更需要的可能是牺牲相对一部分的安全性而获得更多灵活性，让vector调用空间更加紧凑，那样应该才会有更为明显的提升效果。
 
+附：PTA样例代码测试结果（替换为myallocator）
+
+![result_main](./figure/main_result.png)
+
 ### `allocator_trait`
 
 allocator_trait作为标准库容器使用allocator的一个接口，其本身具有丰富的功能，并且可以保证，对于任何容器引入的任何类，traits都可以转换成对应的类型进行处理。在c++17版本，由于allocator_trait实现了allocator的address、construct、destruct等多种功能，allocator中的这些接口已经不推荐使用。这些接口则在c++20中被删除。因此，为了更好的版本兼容，另外实现了一个较为简单的**allocator_trait**部分，其同时具备返回element的地址，以及建构和析构功能。
