@@ -26,7 +26,7 @@ class PoolMemory
     std::size_t capacity() { return m_total_num_blocks; }                  // return total number of blocks that this pool can hold
     bool empty() { return m_free_num_blocks == m_total_num_blocks; }       // return whether the memory pool is empty
     bool full() { return m_free_num_blocks == 0; }                         // return whether the memory pool is full
-    bool has_upper() { return ~m_is_manual; }                              // return whether m_pmemory's raw mem comes from an upper stream
+    bool has_upper() { return !m_is_manual; }                              // return whether m_pmemory's raw mem comes from an upper stream
 
     // return a nullptr if the memory pool is already full
     // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
@@ -71,7 +71,7 @@ class MonoMemory
     std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
     bool empty() { return m_index == 0; }                        // return whether the byte chunk is empty
     bool full() { return m_index == m_total_size; }              // return whether the byte chunk is full
-    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
+    bool has_upper() { return !m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
 
     // return a nullptr if the byte chunk is already full
     // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
