@@ -1,5 +1,7 @@
 .vscode
 .DS_Store
+test
+pool
 !*/*.cpp
 !*/*.hpp
 !*/.gitignore
