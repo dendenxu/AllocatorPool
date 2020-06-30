@@ -4,12 +4,12 @@
 
 | 姓名     | 徐震                                                       | 宗威旭                                                     |
 | -------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
-| 学号     | 3180105504                                                 | 318010xxxx                                                 |
+| 学号     | 3180105504                                                 | 3180102776                                                 |
 | 年级     | 2018级                                                     | 2018级                                                     |
 | 专业     | 计算机科学与技术                                           | 计算机科学与技术                                           |
-| 电话     | 18888916826                                                | 1888891xxxx                                                |
-| 邮箱     | [3180105504@zju.edu.cn](mailto:3180105504@zju.edu.cn)      | [318010xxxx@zju.edu.cn](mailto:318010xxxx@zju.edu.cn)      |
-| GitHub   | [dendenxu](https://github.com/dendenxu)                    | github.com/xxx                                             |
+| 电话     | 18888916826                                                | 18888910233                                                |
+| 邮箱     | [3180105504@zju.edu.cn](mailto:3180105504@zju.edu.cn)      | [3180102776@zju.edu.cn](mailto:3180102776@zju.edu.cn)      |
+| GitHub   | [dendenxu](https://github.com/dendenxu)                    | ZoRax-A5                                                   |
 | 作业仓库 | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) |
 | 指导教师 | 许威威                                                     | 许威威                                                     |
 | 分工情况 | 内存资源管理（`Memory Resource`）                          | 内存管理接口（`Allocator`）                                |
@@ -896,10 +896,13 @@ list的地址不连续，且每次操作的空间均为单个大小。针对这�
 
 实现部分为核心功能allocate以及deallocate。allocate中，我们通过一个vector结构`mpools`（事实上从测试结果看来，这里的时间是可接受的）保存内存区使用的所有chunk。其中，chunk_size为我们给定的一个chunk中block的个数。当内存池尚且剩余空间时，我们从原有空间分配一块block给list使用。否则我们增加一块新的chunk。在deallocate中，我们则可以通过free给当前chunk增加空闲资源。	
 
+对于chunk的管理，我们选取第一个chunk的初始值为1个block。而后每次新增加的block都为指数关系。对于较小数据，chunk的分配较少，可以避免大块内存资源的浪费。对于巨大数据量，chunk的调用poolmemory的分配次数则为对数次，极大减少了allocate的次数。
+
 ```c++
 // allocate
 pointer allocate(size_type n)
 {
+    if (sizeof(pointer) > sizeof(T)) return reinterpret_cast<pointer>(::operator new(n * sizeof(T)));
     if (_mpools.empty() == true) {
         // first allocator memory for user
         mem::PoolMemory* pool = new mem::PoolMemory(sizeof(T), chunk_size);
@@ -919,7 +922,7 @@ pointer allocate(size_type n)
         // free space has been run out.
         else {
             //we need to allocate a new one by expand.
-            pool = new mem::PoolMemory(sizeof(T), chunk_size);
+            pool = new mem::PoolMemory(sizeof(T), pool->capacity() * 2);
             _mpools.push_back(pool);
             //return a new free block.
             pointer ptr = static_cast<pointer>(pool->get());
@@ -931,6 +934,7 @@ pointer allocate(size_type n)
 void deallocate(pointer p, size_type n) {
     // set p free when it's deallocate.
     assert(p != nullptr);
+    if (sizeof(pointer) > sizeof(T)) ::operator delete(p);
     if (_mpools.empty() == false) {
         // set p free and allocate it to the top chunk.
         mem::PoolMemory* pool = _mpools.back();
@@ -958,7 +962,7 @@ private:
 
 对于更大的测试数据，由于std的运行时间相对过长，且即使对于STL的allocator，内存使用也较为紧张。因此略去。从以上测试数据可以看到，利用内存池结构实现的allocator效率十分明显的成倍高于标准库。虽然由于开始分配较多的chunk，我们需要相对长一些的时间创建一个list。但比起我们之后对于list的各种调整size的操作，些许的时间花销相比优化明显是微不足道的。而且根据内存池结构特点，在进行size减少的删除操作后，我们对于内存的利用更加紧凑，可以十分地有效避免内存碎片的出现。
 
-但相对分析，使用poolmemory引入的代价也是不容忽视的。首先，由于block本身增加了内存的消耗量，再加上按chunk分配，有可能会导致部分残存的少于一个chunk大小的内存无法使用。这里，chunk大小的适当选取就显得尤为重要。但相比我们获得的时间上的如此明显的优化，我们增加的内存用量也在可允许范围内。
+但相对分析，使用poolmemory引入的代价也是需要考虑的。首先，由于block本身增加了内存的消耗量，再加上按chunk分配，有可能会导致部分残存的少于一个chunk大小的内存无法使用。这里，chunk大小的适当选取就显得尤为重要。但相比我们获得的时间上的如此明显的优化，我们增加的内存用量也在可允许范围内。
 
 ### `vector`
 
@@ -991,7 +995,7 @@ private:
 
 #### 配置器实现
 
-
+对于vector的allocator的实现。我们设置一个头指针，对vector使用的内存区块进行管理。并设置缓冲指针，作为新allocate得到空间的临时储存指针。类似于list的部分，在初始化时我们可以给一个适当大的meno区块，提供给vector使用
 
 #### 测试结果
 
@@ -1033,3 +1037,4 @@ public:
 }
 ```
 
+## 实验思考与心得
