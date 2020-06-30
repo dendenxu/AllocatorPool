@@ -1,5 +1,7 @@
-*
-!*.cpp
-!*.hpp
-!.gitignore
-!*.md
+.vscode
+.DS_Store
+!*/*.cpp
+!*/*.hpp
+!*/.gitignore
+!*/*.md
+!*/*.assets
