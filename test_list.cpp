@@ -6,7 +6,7 @@
 #include <chrono>
 #include <ratio>
 
-const int TestSize = 10000;
+const int TestSize = 20000;
 const int PickSize = 1000;
 
 template <class T>
