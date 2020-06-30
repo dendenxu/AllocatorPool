@@ -1386,11 +1386,58 @@ private:
 
 #### 配置器实现
 
-对于vector的allocator的实现。我们设置一个头指针，对vector使用的内存区块进行管理。并设置缓冲指针，作为新allocate得到空间的临时储存指针。类似于list的部分，在初始化时我们可以给一个适当大的meno区块，提供给vector使用
+对于vector的allocator的实现。我们设置一个头指针，对vector使用的内存区块进行管理。并设置缓冲指针，作为新allocate得到空间的临时储存指针。类似于list的部分，在初始化时我们可以给一个适当大的meno区块，提供给vector使用。allocate部分，我们先从当前memo内存池中检查是否可以get到足够大的空间。否则我们则需要开辟一块新的空间。由于此时值的拷贝构造尚未完成，我们还不能释放原来的空间。因此我们需要用缓冲指针暂存。然后紧接着调用deallocate时，释放原来的空间，并更新区块管理指针。此时，由于我们得到的空间，在大多数情况下是比原来更大的。因此，我们每次allocate的空间大小也呈现指数级别变化趋势。以及根据vector容量扩张的特点，我们可以减少allocate的次数，通过meno高效的index方式提高运行效率。
+
+``` c++
+const size_type chunk_num = 2;    
+pointer allocate(size_type n)
+{
+    size_type size = sizeof(value_type) * n;
+    // initialize
+    if (_mpool == nullptr) {
+        _mpool = new mem::MonoMemory(size * chunk_num);
+        pointer ptr = static_cast<pointer>(_mpool->get(size));
+        return ptr;
+    }
+	// still enough space to allocate
+    if (_mpool->free_count() > size) {
+        pointer ptr = static_cast<pointer>(_mpool->get(size));
+        return ptr;
+    } 
+    // need to reallocate
+    else {
+        _current_pool = new mem::MonoMemory(size * chunk_num);
+        pointer ptr = static_cast<pointer>(_current_pool->get(size));
+        return ptr;
+    }
+}
+
+// deallocate (left before c++17)
+void deallocate(pointer p, size_type n)
+{
+    // n must be consistent with the allocated space.
+    assert(p != nullptr);
+    if (_current_pool != nullptr) {
+        _mpool->~MonoMemory();
+        _mpool = _current_pool;
+        _current_pool = nullptr;
+    }
+}
+```
 
 #### 测试结果
 
+| 平均时间(my_allocator)/s | 平均时间(std_allocator)/s | 备注                                                         |
+| ------------------------ | ------------------------- | ------------------------------------------------------------ |
+| 2.29e-04                 | 8.46e-05                  | 创建一个初始大小为10000的空vector。                          |
+| 0.002                    | 0.003                     | 进行500个vector的随机大小的创建，后随机选择100个进行resize。 |
+| 0.252                    | 0.256                     | 进行10000个vector的随机大小的创建，后随机选择10000个进行resize。 |
+| 3.891                    | 3.802                     | 进行50000个vector的随机大小的创建，后随机选择1000个进行resize。 |
+| 4.138                    | 4.102                     | 进行50000个vector的随机大小的创建，后随机选择5000个进行resize。 |
 
+在不超过内存负载的情况下进行测试。则发现对于vector的分布，在较小的数据范围内，自行实现的allocator有不是很明显的优化效果。但是在较大数据库，则平均稍慢于标准库中简单的new与delete。总体来看，自行实现的allocator的优化效果并不非常明显。不过在内存资源的重复利用上，自行实现的allocator更有优势一些。
+
+对于这一点的优化不明显，跟vector的实现方法有关。由于vector调用allocate的空间大概率为增大的连续空间，相比list很难利用前面离散的碎片空间。因此也只能释放掉而相对节省内存资源。我们也需要认识到，内存管理模式对于不同容器的提升效果并不一致，需要结合容器自身的空间特征进行分配与分析。如果要实现对于vector的进一步优化，我们更需要的可能是牺牲相对一部分的安全性而获得更多灵活性，让vector调用空间更加紧凑，那样应该才会有更为明显的提升效果。
 
 ### `allocator_trait`
 
@@ -1427,5 +1474,3 @@ public:
 };
 }
 ```
-
-## 实验思考与心得
