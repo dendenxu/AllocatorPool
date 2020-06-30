@@ -25,7 +25,7 @@ class allocator
     using propagate_on_container_move_assignment = std::true_type;
     using is_always_equal = std::true_type;
 
-    const size_type chunk_num = 2;
+    const size_type chunk_num = 1;
 
     template <typename U>
     struct rebind {
