@@ -9,7 +9,7 @@
 | 专业     | 计算机科学与技术                                           | 计算机科学与技术                                           |
 | 电话     | 18888916826                                                | 18888910233                                                |
 | 邮箱     | [3180105504@zju.edu.cn](mailto:3180105504@zju.edu.cn)      | [3180102776@zju.edu.cn](mailto:3180102776@zju.edu.cn)      |
-| GitHub   | [dendenxu](https://github.com/dendenxu)                    | ZoRax-A5                                                   |
+| GitHub   | [dendenxu](https://github.com/dendenxu)                    | [ZoRax-A5](https://github.com/ZoRax-A5)                    |
 | 作业仓库 | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) | [AllocatorPool](https://github.com/dendenxu/AllocatorPool) |
 | 指导教师 | 许威威                                                     | 许威威                                                     |
 | 分工情况 | 内存资源管理（`Memory Resource`）                          | 内存管理接口（`Allocator`）                                |
@@ -21,6 +21,11 @@
 | CPU      | 2.6 GHz 6-Core/12-Logic Intel Core i7-9750 |
 | Memory   | 16 GB 2666 MHz DDR4                        |
 | Disk     | 500 GB Solid State PCI-Express Drive, NVMe |
+
+| OS       | macOS Catalina                                  | Microsoft Windows 10   |
+| -------- | ----------------------------------------------- | ---------------------- |
+| Compiler | Apple clang version 11.0.3 (clang-1103.0.32.62) | Visual Studio `cl.exe` |
+| Flags    | -Ofast -std=c++2a                               | Release x64            |
 
 # `Memory Resource`：内存资源管理
 
@@ -71,6 +76,192 @@ void free(std::size_t size);
     5. `bool full();`用以判断当前资源是否已分配完（没有可用资源供继续分配）。
 
 具体实现：
+
+接口
+
+```c++
+/** Monotonic Memory Resource Declaration */
+class MonoMemory
+{
+   public:
+    MonoMemory(const std::size_t size);
+    MonoMemory(const std::size_t size, std::byte *pointer);
+
+    MonoMemory(const MonoMemory &alloc) = delete;           // delete copy constructor
+    MonoMemory &operator=(const MonoMemory &rhs) = delete;  // delete copy-assignment operator
+    MonoMemory(MonoMemory &&alloc) = delete;                // delete move constructor
+    MonoMemory &operator=(MonoMemory &&rhs) = delete;       // delete move-assignment operator
+
+    ~MonoMemory();
+
+    std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
+    std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
+    std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
+    bool empty() { return m_index == 0; }                        // return whether the byte chunk is empty
+    bool full() { return m_index == m_total_size; }              // return whether the byte chunk is full
+    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
+
+    // return a nullptr if the byte chunk is already full
+    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
+    void *get(std::size_t size);
+
+    // make sure the pblock is one of the pointers that you get from this byte chunk
+    void free(void *pblock, std::size_t size);
+    void free(std::size_t size);
+
+   private:
+    std::byte *m_pmemory;      // pointer to the byte array
+    std::size_t m_index;       // current index of the byte array
+    std::size_t m_total_size;  // total number of blocks
+    bool m_is_manual;          // whether the m_pmemory is manually allocated by us
+};
+```
+
+实现
+
+```c++
+/** Monotonic Memory Resource Implementation */
+MonoMemory::MonoMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
+MonoMemory::MonoMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
+MonoMemory::~MonoMemory()
+{
+    if (m_is_manual) {
+        delete[] m_pmemory;
+    }
+}  // delete the pre-allocated byte chunk chunk
+void *MonoMemory::get(std::size_t size)
+{
+    if (m_index + size > m_total_size) {
+        std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
+        throw std::bad_alloc();
+        // return nullptr;
+    } else {
+        void *ptr = m_pmemory + m_index;
+        m_index += size;
+        return ptr;
+    }
+}
+
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void MonoMemory::free(void *pblock, std::size_t size)
+{
+    free(size);
+    assert(pblock == m_pmemory + m_index);
+}
+// make sure the pblock is one of the pointers that you get from this byte chunk
+void MonoMemory::free(std::size_t size)
+{
+    assert(m_index >= size);
+    m_index -= size;
+}
+```
+
+### 特性
+
+基于这一单向增长，反向减少的特性，这种内存资源仅支持类似堆栈的分配机制：
+
+- **先进后出**，只有当堆栈顶端的内存被释放后，其下部资源才有可能被合法释放。
+
+当然，由于内存资源是线性管理的，我们也可以利用这一特性来达到更好的大块内存分配效率：
+
+- 当我们连续分配了许多段小内存，我们可以通过调用一次`free`函数来将他们全部释放。
+
+优点：
+
+1. 这种内存资源的分配和释放速度极快，这两个操作仅仅涉及到对`index`的增加或减少。
+
+    这两个操作的时间复杂度是线性的，无论我们需要的内存大小是多少。
+
+2. 这种内存资源支持变大小的内存分配，这一点可以通过传入参数`std::size_t size`实现。
+
+3. 若严格遵守此资源的分配和释放要求（堆栈形的先进先出），则没有内存泄漏会发生，因为所有分配和释放操作都是连续的。
+
+4. 同上一点，该资源不会在内部产生内存碎片，因为分配和释放都是完全连续的。
+
+5. 由于我们支持在构建该内存资源时传入指针，此内存资源是灵活的，可以使用其他资源提供的指针。
+
+缺点：
+
+1. 内存资源需严格按照堆栈要求进行分配释放才符合要求，这严重限制了此类内存资源的应用面。
+
+2. 成员变量的大小为`32 Bytes`，这意味着如果我们通过这一个类管理的内存与此数量级相当，我们会遇到不小的内存资源浪费。
+
+    实际大小应为：`25 Bytes`，但由于我的机器为8字节对齐，最终大小成为了`32 Bytes`
+
+    ```c++
+    Size of a std::size_t is: 8
+    Size of a void * is: 8
+    Size of a bool is: 1
+    Size of a MonoMemory is: 32
+    ```
+
+## `Pool Memory`：内存池资源
+
+### 概要
+
+我们通过内存池这一结构来管理内存的分配与释放，我们提供类似于普通线性堆栈式内存资源的接口，不额外占据内存以实现一个内存链表。
+
+由于我们将链表地址直接映射到了需要分配的内存池中，这一结构的空间复杂度为`O(1)`。
+
+但由于我们需要初始化相应位置的内存，创建这一结构的时间复杂度为`O(num_blocks)`。
+
+幸运的是，在内存池资源创建完毕后，获取和释放内存的操作的时间复杂度就变成了`O(1)`。只涉及到几个简单的指针操作与`static_cast<>`。
+
+值得注意的是，由于我们在内存池的原始内存位置直接存放了相应的指针，我们要求池中每一个块的大小至少为`sizeof(void *)`，以实现对内存的更高效利用。
+
+- 若我们不进行这样的要求，让我们做出如下假设：
+
+    1. 指针大小（`sizeof(void *)`）为：`8 Bytes`
+    2. 内存池块大小为`4 Bytes`
+
+    容易发现，在更新某一块内存中储存的指针时，它会与其相邻块的内容发生重叠，造成紊乱。因此上述要求是必须的
+
+- 退一步讲，若我们不进行这样的实现，而是通过一个外部结构（数组或链表）来管理相关内存指针，则会发生严重的内存浪费。
+
+    即使我们的外部资源除了一个8字节的指针外不存储任何信息，这一内存消耗也是严重的：
+
+    外部数据需要的内存量甚至大于实际分配出的内存。
+
+### 具体实现
+
+如上所述，我们通过在原生内存上构建指针来实现这一内存池结构。
+
+类似于`MonoMemory`，我们提供了如下接口：
+
+```c++
+PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
+PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
+std::size_t block_size();
+std::size_t pool_size();
+std::size_t free_count();
+std::size_t size();
+std::size_t capacity();
+bool empty();
+bool full();
+bool has_upper();
+void *get(std::size_t size);
+void *get();
+void free(void *pblock, std::size_t size);
+void free(void *pblock);
+```
+
+- 类似的，核心接口是`get`与`free`两个函数，他们提供了分配和释放内存的功能。
+
+    1. `get`函数会取得当前`free_list`的最前端内存`m_phead`，并将内部的前端记录器更新为他的下一段内存的指针，也就是我们在初始化时就已经写入对应内存的。
+    2. `free`函数会接受一个内存地址，它无法判断这段内存地址究竟是否来自以前分配出去的，它会将参数中的地址作为新的`m_phead`也就是`free_list`的头部，并将旧头部的地址储存到这一个内存下。
+    3. 为了匹配接口，我们也提供了传入`size`的版本，我们推荐统一使用这种接口，因为程序可以帮忙检查上层代码渴望的内存数量与我们能够提供的是否相等。当然，我们对此使用了`assert`，这种错误一旦出现就将是致命的。
+
+- 类似的，初始化过程中，我们提供了两种类型，上层代码可以通过选择是否传入`p_memory`参数来选择是否让`PoolMemory`变量管理内存。
+
+    不同于`MonoMemory`，两个构造函数都会调用内部接口`init_memory`以初始化`m_pmemory`指向的内存段（将内存段按顺序填充为下一段内存的头地址，构成一个链表。除了最后一段存储一个空指针（`nullptr`））。
+
+    ![poolinit](MyAllocator.assets/poolinit.svg)
+
+- 其他控制接口类似于我们在`MonoMemory`中使用的。
+
+- 在进行一定数量的随机调用后我们的`free_list`结构就会发生大幅度改变，当然，发生这些改变证明我们正在重用这些已经被分配的内存资源。
+
+    ![poolafter](MyAllocator.assets/poolafter.svg)
 
 接口
 
@@ -279,186 +470,6 @@ void PoolMemory::free(void *pblock)
         m_phead = static_cast<void **>(pblock);
         *m_phead = ppreturned_block;
     }
-}
-```
-
-### 特性
-
-基于这一单向增长，反向减少的特性，这种内存资源仅支持类似堆栈的分配机制：
-
-- **先进后出**，只有当堆栈顶端的内存被释放后，其下部资源才有可能被合法释放。
-
-当然，由于内存资源是线性管理的，我们也可以利用这一特性来达到更好的大块内存分配效率：
-
-- 当我们连续分配了许多段小内存，我们可以通过调用一次`free`函数来将他们全部释放。
-
-优点：
-
-1. 这种内存资源的分配和释放速度极快，这两个操作仅仅涉及到对`index`的增加或减少。
-
-    这两个操作的时间复杂度是线性的，无论我们需要的内存大小是多少。
-
-2. 这种内存资源支持变大小的内存分配，这一点可以通过传入参数`std::size_t size`实现。
-
-3. 若严格遵守此资源的分配和释放要求（堆栈形的先进先出），则没有内存泄漏会发生，因为所有分配和释放操作都是连续的。
-
-4. 同上一点，该资源不会在内部产生内存碎片，因为分配和释放都是完全连续的。
-
-5. 由于我们支持在构建该内存资源时传入指针，此内存资源是灵活的，可以使用其他资源提供的指针。
-
-缺点：
-
-1. 内存资源需严格按照堆栈要求进行分配释放才符合要求，这严重限制了此类内存资源的应用面。
-
-2. 成员变量的大小为`32 Bytes`，这意味着如果我们通过这一个类管理的内存与此数量级相当，我们会遇到不小的内存资源浪费。
-
-    实际大小应为：`25 Bytes`，但由于我的机器为8字节对齐，最终大小成为了`32 Bytes`
-
-    ```c++
-    Size of a std::size_t is: 8
-    Size of a void * is: 8
-    Size of a bool is: 1
-    Size of a MonoMemory is: 32
-    ```
-
-## `Pool Memory`：内存池资源
-
-### 概要
-
-我们通过内存池这一结构来管理内存的分配与释放，我们提供类似于普通线性堆栈式内存资源的接口，不额外占据内存以实现一个内存链表。
-
-由于我们将链表地址直接映射到了需要分配的内存池中，这一结构的空间复杂度为`O(1)`。
-
-但由于我们需要初始化相应位置的内存，创建这一结构的时间复杂度为`O(num_blocks)`。
-
-幸运的是，在内存池资源创建完毕后，获取和释放内存的操作的时间复杂度就变成了`O(1)`。只涉及到几个简单的指针操作与`static_cast<>`。
-
-值得注意的是，由于我们在内存池的原始内存位置直接存放了相应的指针，我们要求池中每一个块的大小至少为`sizeof(void *)`，以实现对内存的更高效利用。
-
-- 若我们不进行这样的要求，让我们做出如下假设：
-
-    1. 指针大小（`sizeof(void *)`）为：`8 Bytes`
-    2. 内存池块大小为`4 Bytes`
-
-    容易发现，在更新某一块内存中储存的指针时，它会与其相邻块的内容发生重叠，造成紊乱。因此上述要求是必须的
-
-- 退一步讲，若我们不进行这样的实现，而是通过一个外部结构（数组或链表）来管理相关内存指针，则会发生严重的内存浪费。
-
-    即使我们的外部资源除了一个8字节的指针外不存储任何信息，这一内存消耗也是严重的：
-
-    外部数据需要的内存量甚至大于实际分配出的内存。
-
-### 具体实现
-
-如上所述，我们通过在原生内存上构建指针来实现这一内存池结构。
-
-类似于`MonoMemory`，我们提供了如下接口：
-
-```c++
-PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks);
-PoolMemory(const std::size_t block_sz_bytes, const std::size_t num_blocks, std::byte *pmemory);
-std::size_t block_size();
-std::size_t pool_size();
-std::size_t free_count();
-std::size_t size();
-std::size_t capacity();
-bool empty();
-bool full();
-bool has_upper();
-void *get(std::size_t size);
-void *get();
-void free(void *pblock, std::size_t size);
-void free(void *pblock);
-```
-
-- 类似的，核心接口是`get`与`free`两个函数，他们提供了分配和释放内存的功能。
-
-    1. `get`函数会取得当前`free_list`的最前端内存`m_phead`，并将内部的前端记录器更新为他的下一段内存的指针，也就是我们在初始化时就已经写入对应内存的。
-    2. `free`函数会接受一个内存地址，它无法判断这段内存地址究竟是否来自以前分配出去的，它会将参数中的地址作为新的`m_phead`也就是`free_list`的头部，并将旧头部的地址储存到这一个内存下。
-    3. 为了匹配接口，我们也提供了传入`size`的版本，我们推荐统一使用这种接口，因为程序可以帮忙检查上层代码渴望的内存数量与我们能够提供的是否相等。当然，我们对此使用了`assert`，这种错误一旦出现就将是致命的。
-
-- 类似的，初始化过程中，我们提供了两种类型，上层代码可以通过选择是否传入`p_memory`参数来选择是否让`PoolMemory`变量管理内存。
-
-    不同于`MonoMemory`，两个构造函数都会调用内部接口`init_memory`以初始化`m_pmemory`指向的内存段（将内存段按顺序填充为下一段内存的头地址，构成一个链表。除了最后一段存储一个空指针（`nullptr`））。
-
-- 其他控制接口类似于我们在`MonoMemory`中使用的。
-
-接口
-
-```c++
-/** Monotonic Memory Resource Declaration */
-class MonoMemory
-{
-   public:
-    MonoMemory(const std::size_t size);
-    MonoMemory(const std::size_t size, std::byte *pointer);
-
-    MonoMemory(const MonoMemory &alloc) = delete;           // delete copy constructor
-    MonoMemory &operator=(const MonoMemory &rhs) = delete;  // delete copy-assignment operator
-    MonoMemory(MonoMemory &&alloc) = delete;                // delete move constructor
-    MonoMemory &operator=(MonoMemory &&rhs) = delete;       // delete move-assignment operator
-
-    ~MonoMemory();
-
-    std::size_t free_count() { return m_total_size - m_index; }  // return number of free blocks inside the byte chunk
-    std::size_t size() { return m_index; }                       // return the number of used space in the byte chunk
-    std::size_t capacity() { return m_total_size; }              // return total number of blocks that this pool can hold
-    bool empty() { return m_index == 0; }                        // return whether the byte chunk is empty
-    bool full() { return m_index == m_total_size; }              // return whether the byte chunk is full
-    bool has_upper() { return ~m_is_manual; }                    // return whether m_pmemory's raw mem comes from an upper stream
-
-    // return a nullptr if the byte chunk is already full
-    // else this returns a pointer to an block whose size(still raw memory) is m_block_sz_bytes
-    void *get(std::size_t size);
-
-    // make sure the pblock is one of the pointers that you get from this byte chunk
-    void free(void *pblock, std::size_t size);
-    void free(std::size_t size);
-
-   private:
-    std::byte *m_pmemory;      // pointer to the byte array
-    std::size_t m_index;       // current index of the byte array
-    std::size_t m_total_size;  // total number of blocks
-    bool m_is_manual;          // whether the m_pmemory is manually allocated by us
-};
-```
-
-实现
-
-```c++
-/** Monotonic Memory Resource Implementation */
-MonoMemory::MonoMemory(const std::size_t size) : m_total_size(size), m_index(0), m_is_manual(true) { m_pmemory = new std::byte[size]; }
-MonoMemory::MonoMemory(const std::size_t size, std::byte *pointer) : m_pmemory(pointer), m_index(0), m_total_size(size), m_is_manual(false) {}
-MonoMemory::~MonoMemory()
-{
-    if (m_is_manual) {
-        delete[] m_pmemory;
-    }
-}  // delete the pre-allocated byte chunk chunk
-void *MonoMemory::get(std::size_t size)
-{
-    if (m_index + size > m_total_size) {
-        std::cerr << "[ERROR] Unable to handle the allocation, too large for this chunk." << std::endl;
-        throw std::bad_alloc();
-        // return nullptr;
-    } else {
-        void *ptr = m_pmemory + m_index;
-        m_index += size;
-        return ptr;
-    }
-}
-
-// make sure the pblock is one of the pointers that you get from this byte chunk
-void MonoMemory::free(void *pblock, std::size_t size)
-{
-    free(size);
-    assert(pblock == m_pmemory + m_index);
-}
-// make sure the pblock is one of the pointers that you get from this byte chunk
-void MonoMemory::free(std::size_t size)
-{
-    assert(m_index >= size);
-    m_index -= size;
 }
 ```
 
@@ -908,6 +919,8 @@ int main()
 ```
 
 ### 测试结果
+
+我们尝试过将这些测试结果做成表格，但由于为了引入随机性，我们在太多操作上做了随机操作，因此这一测试的主要作用是观察`MonoMemory`和`PoolMemory`在高负载的随机操作下的正确性，并验证我们先前提到的时间复杂度。具体性能测试与对比将在`Allocator`一节介绍。
 
 ```c++
 [INFO] We're doing the allocation manually
