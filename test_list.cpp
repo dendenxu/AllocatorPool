@@ -75,6 +75,10 @@ int main() {
         listdous.back().resize(n_size);
         listdous.pop_back();
     }
+    for (int i = 0; i < PickSize; ++i) {
+        listdous.back().clear();
+        listdous.pop_back();
+    }
     end = hiclock::now();
 
     std::cout

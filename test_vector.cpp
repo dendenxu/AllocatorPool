@@ -64,10 +64,6 @@ int main() {
         int size = dis(gen);
         vecdous[idx].resize(size);
     }
-    for (int i = 0; i < PickSize; ++i) {
-        listdous.back().clear();
-        listdous.pop_back();
-    }
     end = hiclock::now();
 
     std::cout
